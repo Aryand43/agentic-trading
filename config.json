@@ -1,0 +1,15 @@
+{
+    "trading": {
+        "tickers": [
+            "AAPL",
+            "MSFT",
+            "NVDA"
+        ],
+        "period": "5d",
+        "interval": "1m"
+    },
+    "risk": {
+        "window_size": 60,
+        "confidence": 0.95
+    }
+}
