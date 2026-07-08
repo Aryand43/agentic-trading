@@ -13,3 +13,22 @@ HORIZON_TRADING_DAYS = {
     "1m": 21,
     "3m": 63,
 }
+
+# --- Risk Engine & Trading Variables ---
+
+# Market structure constants
+MINUTES_PER_TRADING_DAY = 390 
+
+# The fixed historical lookback window used to calculate standard deviation and covariance 
+
+TRADING = {
+    "tickers": ["AAPL", "MSFT", "NVDA"],
+    "period": "5d",
+    "interval": "1m"
+}
+
+RISK = {
+    "window_size": 60,  # (60 bars = 1 hour of 1-minute data)
+    "confidence": 0.95,
+    "estimation_days": 21  # (21 days ensures statistical significance regardless of the forecast horizon)
+}
