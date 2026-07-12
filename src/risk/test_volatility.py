@@ -95,7 +95,9 @@ class TestVolatilityInterface(unittest.TestCase):
                 # FIX: Dynamically calculate the expected volatility for this specific slice
                 # (This captures the massive standard deviation spike from the flash crash)
                 windowed_returns = self.returns_df["AAPL"].tail(lookback_size)
-                slice_vol = windowed_returns.std()
+                
+                ewma_lambda = RISK["ewma_lambda"]
+                slice_vol = windowed_returns.ewm(alpha=1-ewma_lambda).std().iloc[-1]
                 
                 expected_var = expected_z * slice_vol * time_scaler 
                 
@@ -117,7 +119,10 @@ class TestVolatilityInterface(unittest.TestCase):
         windowed_returns = self.returns_df.tail(lookback_size)
         w_array = np.array([self.weights["AAPL"], self.weights["MSFT"], self.weights["NVDA"]])
         
-        expected_variance = np.dot(w_array.T, np.dot(windowed_returns.cov(), w_array))
+        ewma_lambda = RISK["ewma_lambda"]
+        expected_cov = windowed_returns.ewm(alpha=1-ewma_lambda).cov().xs(windowed_returns.index[-1], level=0)
+        expected_variance = np.dot(w_array.T, np.dot(expected_cov, w_array))
+
         expected_port_vol = np.sqrt(expected_variance)
         
         self.assertAlmostEqual(port_vol_result, expected_port_vol, places=5)
@@ -142,8 +147,10 @@ class TestVolatilityInterface(unittest.TestCase):
                 # FIX: Dynamically calculate the expected volatility for this specific slice
                 windowed_returns = self.returns_df.tail(lookback_size)
                 w_array = np.array([self.weights["AAPL"], self.weights["MSFT"], self.weights["NVDA"]])
-                expected_variance = np.dot(w_array.T, np.dot(windowed_returns.cov(), w_array))
-                slice_port_vol = np.sqrt(expected_variance)
+                
+                ewma_lambda = RISK["ewma_lambda"]
+                port_returns = windowed_returns.dot(w_array)
+                slice_port_vol = port_returns.ewm(alpha=1-ewma_lambda).std().iloc[-1]
                 
                 # Calculate expected VaR using the exact slice volatility
                 expected_port_var = expected_z * slice_port_vol * time_scaler

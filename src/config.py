@@ -30,5 +30,6 @@ TRADING = {
 RISK = {
     "window_size": 60,  # (60 bars = 1 hour of 1-minute data)
     "confidence": 0.95,
-    "estimation_days": 21  # (21 days ensures statistical significance regardless of the forecast horizon)
+    "estimation_days": 21,  # (21 days ensures statistical significance regardless of the forecast horizon)
+    "ewma_lambda": 0.99     # Added for dynamic variance decay (EWMA)
 }

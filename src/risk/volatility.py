@@ -16,6 +16,7 @@ from src.risk.engine.advanced_risk import calculate_cornish_fisher_multiplier
 
 # Dynamically calculate the historical lookback size from the config
 ESTIMATION_WINDOW = RISK["estimation_days"] * MINUTES_PER_TRADING_DAY
+EWMA_LAMBDA = RISK["ewma_lambda"]
 
 # Maps string horizons to exact minute counts for forward-scaling
 FORECAST_MINUTES = {
@@ -71,8 +72,8 @@ def stock_var(ticker: str, horizon: str, returns: pd.Series, confidence: float =
     cf_z_scores = calculate_cornish_fisher_multiplier(returns_df, window_size=lookback_size, confidence=confidence)
     latest_z = cf_z_scores.iloc[-1][ticker]
     
-    # Calculate standard deviation ONLY on the sliced window
-    volatility = windowed_returns.std()
+    #UPGRADE: Exponentially Weighted Standard Deviation
+    volatility = windowed_returns.ewm(alpha=1-EWMA_LAMBDA).std().iloc[-1] # Calculate standard deviation ONLY on the sliced window
     
     # 2. THE FORECAST: Scale the risk forward based on the requested horizon
     forecast_minutes = FORECAST_MINUTES[horizon]  # Direct access, no fallback
@@ -104,8 +105,9 @@ def portfolio_volatility(weights: dict[str, float], horizon: str, returns: pd.Da
     lookback_size = min(ESTIMATION_WINDOW, len(aligned_returns))
     windowed_returns = aligned_returns.tail(lookback_size)
 
-    # Generate the covariance matrix ONLY on the sliced window
-    cov_matrix = windowed_returns.cov()
+    # UPGRADE: Generate EWMA covariance matrix and extract the final timestamp's matrix
+    ewm_cov = windowed_returns.ewm(alpha=1-EWMA_LAMBDA).cov()
+    cov_matrix = ewm_cov.xs(windowed_returns.index[-1], level=0)
     
     # Execute standard portfolio variance linear algebra: w^T * Sigma * w
     port_variance = np.dot(w_array.T, np.dot(cov_matrix, w_array))
@@ -142,9 +144,8 @@ def portfolio_var(weights: dict[str, float], horizon: str, returns: pd.DataFrame
     # Grabs the final, most up-to-date dynamic Z-score ($Z_{CF}$) for the current minute.
     latest_z = cf_z_scores.iloc[-1]['Portfolio']
     
-    # Calculate standard deviation directly from the 1D returns array
-    port_vol = port_returns.std()     # O(T) Optimization: Standard deviation of 1D linear returns matches covariance matrix output
-
+    # Calculate standard deviation directly from the 1D returns array using EWMA
+    port_vol = port_returns.ewm(alpha=1-EWMA_LAMBDA).std().iloc[-1]     # O(T) Optimization: Standard deviation of 1D linear returns matches covariance matrix output
 
     # Apply Square Root of Time Scaling
     # 2. THE FORECAST: Scale the risk forward based on the requested horizon
