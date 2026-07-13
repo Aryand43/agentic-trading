@@ -13,6 +13,7 @@ import numpy as np
 # Import horizons, risk settings, and the new time constants
 from src.config import HORIZONS, RISK, HORIZON_TRADING_DAYS, MINUTES_PER_TRADING_DAY
 from src.risk.engine.advanced_risk import calculate_cornish_fisher_multiplier
+from src.risk.engine.baseline_metrics import calculate_baseline_volatility
 
 # Dynamically calculate the historical lookback size from the config
 ESTIMATION_WINDOW = RISK["estimation_days"] * MINUTES_PER_TRADING_DAY
@@ -51,11 +52,25 @@ def _validate_portfolio_inputs(weights: dict[str, float], returns: pd.DataFrame)
         raise ValueError("Negative weights detected. Risk engine currently assumes long-only portfolios.")
 
 def stock_volatility(ticker: str, horizon: str, returns: pd.Series) -> float:
-    """TODO(Ayush): standard deviation of `ticker` returns over `horizon`."""
+    """Standard deviation of `ticker` returns over `horizon`."""
     if horizon not in HORIZONS:
         raise ValueError(f"Unknown horizon: {horizon}")
     
-    raise NotImplementedError("stock_volatility not yet implemented by Ayush")
+    # Clean the data
+    _validate_stock_inputs(ticker, returns)
+    
+    # Slice a stable, statistically significant chunk of history
+    lookback_size = min(ESTIMATION_WINDOW, len(returns))
+    windowed_returns = returns.tail(lookback_size)
+    
+    # Calculate baseline volatility
+    baseline_vol = calculate_baseline_volatility(windowed_returns)
+    
+    # Scale the risk forward based on the requested horizon
+    forecast_minutes = FORECAST_MINUTES[horizon]
+    time_scaler = np.sqrt(forecast_minutes)
+    
+    return float(baseline_vol * time_scaler)
 
 def stock_var(ticker: str, horizon: str, returns: pd.Series, confidence: float = 0.95) -> float:
     """Value-at-Risk for `ticker` over `horizon` using Cornish-Fisher expansion."""
