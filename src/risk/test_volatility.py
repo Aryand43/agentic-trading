@@ -16,6 +16,7 @@ from src.risk.volatility import (
     portfolio_var,
     FORECAST_MINUTES
 )
+from src.risk.engine.baseline_metrics import calculate_log_returns, calculate_historical_var
 
 class TestVolatilityInterface(unittest.TestCase):
     
@@ -63,17 +64,70 @@ class TestVolatilityInterface(unittest.TestCase):
         with self.assertRaises(ValueError):
             stock_var("AAPL", "99d", self.returns_df["AAPL"])
 
-    def test_stock_volatility_status(self):
-        """Check if Ayush's baseline function works, or flag if it's still uncompleted."""
-        print(f"\n--- [STOCK VOLATILITY STATUS] ---")
-        try:
-            vol_result = stock_volatility("AAPL", "1d", self.returns_df["AAPL"])
-            self.assertIsInstance(vol_result, float)
-            print(f"Status: IMPLEMENTED! Output: {vol_result:.5f}")
-        except NotImplementedError:
-            print("Status: PENDING. Ayush has not implemented the baseline math yet.")
-        except Exception as e:
-            self.fail(f"Ayush's stock_volatility function crashed: {e}")
+    def test_stock_volatility_math_accuracy(self):
+        """Verify baseline volatility calculates the correct scaled standard deviation."""
+        print(f"\n--- [STOCK VOLATILITY MATH CHECK (ALL HORIZONS)] ---")
+        
+        estimation_window = RISK.get("estimation_days", 21) * MINUTES_PER_TRADING_DAY
+        lookback_size = min(estimation_window, len(self.returns_df["AAPL"]))
+        
+        for horizon in HORIZONS:
+            with self.subTest(horizon=horizon):
+                # Run the function
+                vol_result = stock_volatility("AAPL", horizon, self.returns_df["AAPL"])
+                
+                # Calculate what the exact mathematical answer should be
+                windowed_returns = self.returns_df["AAPL"].tail(lookback_size)
+                expected_baseline_vol = windowed_returns.std()
+                
+                forecast_minutes = FORECAST_MINUTES[horizon]
+                time_scaler = np.sqrt(forecast_minutes)
+                expected_vol = expected_baseline_vol * time_scaler
+                
+                print(f"[{horizon:>3}] Scaler: {time_scaler:>6.2f}x | Expected: {expected_vol:.5f} | Calc: {vol_result:.5f}")
+                
+                # check output
+                self.assertIsInstance(vol_result, float)
+                self.assertAlmostEqual(vol_result, expected_vol, places=5)
+
+    def test_log_returns_math(self):
+        """Verify the log returns transformation is mathematically exact."""
+        print(f"\n--- [LOG RETURNS MATH CHECK] ---")
+        
+        # Create dummy prices: 100 -> 105 -> 102
+        prices = pd.Series([100.0, 105.0, 102.0])
+        
+        # The exact expected math: ln(P_t / P_{t-1})
+        expected_returns = pd.Series([
+            np.log(105.0 / 100.0), 
+            np.log(102.0 / 105.0)
+        ], index=[1, 2]) 
+        
+        calc_returns = calculate_log_returns(prices)
+        
+        pd.testing.assert_series_equal(calc_returns, expected_returns, check_names=False)
+        print("Status: Log Returns math is perfectly time-additive!")
+
+    def test_historical_var_math(self):
+        """Verify the non-parametric historical VaR correctly finds the worst-case cutoff."""
+        print(f"\n--- [HISTORICAL VAR MATH CHECK] ---")
+        
+        # Generate 1,000 days of normal market returns
+        np.random.seed(42)
+        mock_returns = pd.Series(np.random.normal(0, 0.02, 1000))
+        
+        # Inject an artificial "flash crash" (-50%) 
+        mock_returns.iloc[0] = -0.50 
+        
+        # Calculate the 5th percentile 
+        expected_var = abs(np.percentile(mock_returns, 5))
+        
+        calc_var = calculate_historical_var(mock_returns, confidence=0.95)
+        
+        print(f"Expected VaR Threshold: {expected_var:.5f} | Calculated: {calc_var:.5f}")
+        
+        self.assertIsInstance(calc_var, float)
+        self.assertAlmostEqual(calc_var, expected_var, places=5)
 
     def test_stock_var_all_horizons(self):
         """Verify the Cornish-Fisher engine dynamically time-scales across ALL horizons."""
