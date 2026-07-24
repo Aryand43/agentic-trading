@@ -18,6 +18,7 @@ HORIZON_TRADING_DAYS = {
 
 # Market structure constants
 MINUTES_PER_TRADING_DAY = 390 
+TRADING_DAYS_PER_YEAR = 252  # Added for annualization standardizations
 
 # The fixed historical lookback window used to calculate standard deviation and covariance 
 

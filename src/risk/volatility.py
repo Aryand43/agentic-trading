@@ -7,11 +7,26 @@ Two levels, both indexed by the same horizons as the trading strategies:
      can move together (correlated) or offset each other.
 """
 
+# TODO: RESEARCH & METHODOLOGY JUSTIFICATION (PAPER READINESS)
+# 
+# 1. EWMA Decay Factor: Justify lambda = 0.99 for the 
+#    cov matrix. (Needs citation)
+# 
+# 2. Cornish-Fisher Expansion: Cite literature proving standard Gaussian VaR 
+#    fails during flash crashes (negative skew/high kurtosis events), 
+#    justifying the need for dynamic tail-risk boundaries.
+# 
+# 3. Dual-Methodology Architecture: Document the design choice to separate 
+#    baseline historical standard deviation 
+#    from EWMA VaR (used for immediate crash protection).
+#
+# ==============================================================================
+
 import pandas as pd
 import numpy as np
 
 # Import horizons, risk settings, and the new time constants
-from src.config import HORIZONS, RISK, HORIZON_TRADING_DAYS, MINUTES_PER_TRADING_DAY
+from src.config import HORIZONS, RISK, HORIZON_TRADING_DAYS, MINUTES_PER_TRADING_DAY, TRADING_DAYS_PER_YEAR
 from src.risk.engine.advanced_risk import calculate_cornish_fisher_multiplier
 from src.risk.engine.baseline_metrics import calculate_baseline_volatility
 
@@ -52,7 +67,11 @@ def _validate_portfolio_inputs(weights: dict[str, float], returns: pd.DataFrame)
         raise ValueError("Negative weights detected. Risk engine currently assumes long-only portfolios.")
 
 def stock_volatility(ticker: str, horizon: str, returns: pd.Series) -> float:
-    """Standard deviation of `ticker` returns over `horizon`."""
+    """Standard deviation of `ticker` returns over `horizon`.
+    
+    Note: Volatility uses baseline historical standard deviation for LLM observability, 
+    while VaR utilizes EWMA for dynamic tail-risk scaling.
+    """
     if horizon not in HORIZONS:
         raise ValueError(f"Unknown horizon: {horizon}")
     
@@ -72,7 +91,7 @@ def stock_volatility(ticker: str, horizon: str, returns: pd.Series) -> float:
     
     return float(baseline_vol * time_scaler)
 
-def stock_var(ticker: str, horizon: str, returns: pd.Series, confidence: float = 0.95) -> float:
+def stock_var(ticker: str, horizon: str, returns: pd.Series) -> dict[str, float]:
     """Value-at-Risk for `ticker` over `horizon` using Cornish-Fisher expansion."""
     if horizon not in HORIZONS:
         raise ValueError(f"Unknown horizon: {horizon}")
@@ -84,8 +103,11 @@ def stock_var(ticker: str, horizon: str, returns: pd.Series, confidence: float =
     windowed_returns = returns.tail(lookback_size) # Slice the fixed historical estimation window.
     returns_df = windowed_returns.to_frame(name=ticker)
     
-    cf_z_scores = calculate_cornish_fisher_multiplier(returns_df, window_size=lookback_size, confidence=confidence)
-    latest_z = cf_z_scores.iloc[-1][ticker]
+    cf_z_scores_95 = calculate_cornish_fisher_multiplier(returns_df, window_size=lookback_size, confidence=0.95)
+    cf_z_scores_99 = calculate_cornish_fisher_multiplier(returns_df, window_size=lookback_size, confidence=0.99)
+    
+    latest_z_95 = cf_z_scores_95.iloc[-1][ticker]
+    latest_z_99 = cf_z_scores_99.iloc[-1][ticker]
     
     #UPGRADE: Exponentially Weighted Standard Deviation
     volatility = windowed_returns.ewm(alpha=1-EWMA_LAMBDA).std().iloc[-1] # Calculate standard deviation ONLY on the sliced window
@@ -94,7 +116,10 @@ def stock_var(ticker: str, horizon: str, returns: pd.Series, confidence: float =
     forecast_minutes = FORECAST_MINUTES[horizon]  # Direct access, no fallback
     time_scaler = np.sqrt(forecast_minutes)
     
-    return float(abs(latest_z * volatility * time_scaler))
+    return {
+        "var_95": float(abs(latest_z_95 * volatility * time_scaler)),
+        "var_99": float(abs(latest_z_99 * volatility * time_scaler))
+    }
 
 def portfolio_volatility(weights: dict[str, float], horizon: str, returns: pd.DataFrame) -> float:
     """Portfolio-level volatility for `weights` over `horizon`,
@@ -127,9 +152,12 @@ def portfolio_volatility(weights: dict[str, float], horizon: str, returns: pd.Da
     # Execute standard portfolio variance linear algebra: w^T * Sigma * w
     port_variance = np.dot(w_array.T, np.dot(cov_matrix, w_array))
 
-    return float(np.sqrt(port_variance))
+    # Apply annualization scaler (1-minute data mapping to yearly volatility)
+    annualization_scaler = np.sqrt(TRADING_DAYS_PER_YEAR * MINUTES_PER_TRADING_DAY)
 
-def portfolio_var(weights: dict[str, float], horizon: str, returns: pd.DataFrame, confidence: float = 0.95) -> float:
+    return float(np.sqrt(port_variance) * annualization_scaler)
+
+def portfolio_var(weights: dict[str, float], horizon: str, returns: pd.DataFrame) -> dict[str, float]:
     """Portfolio-level Value-at-Risk for `weights` over `horizon`."""
     if horizon not in HORIZONS:
         raise ValueError(f"Unknown horizon: {horizon}")
@@ -154,10 +182,12 @@ def portfolio_var(weights: dict[str, float], horizon: str, returns: pd.DataFrame
     # Convert to DataFrame and get the rolling Z-score for the whole basket
     port_returns_df = port_returns.to_frame(name='Portfolio')
     
-    cf_z_scores = calculate_cornish_fisher_multiplier(port_returns_df, window_size=lookback_size, confidence=confidence)
+    cf_z_scores_95 = calculate_cornish_fisher_multiplier(port_returns_df, window_size=lookback_size, confidence=0.95)
+    cf_z_scores_99 = calculate_cornish_fisher_multiplier(port_returns_df, window_size=lookback_size, confidence=0.99)
 
     # Grabs the final, most up-to-date dynamic Z-score ($Z_{CF}$) for the current minute.
-    latest_z = cf_z_scores.iloc[-1]['Portfolio']
+    latest_z_95 = cf_z_scores_95.iloc[-1]['Portfolio']
+    latest_z_99 = cf_z_scores_99.iloc[-1]['Portfolio']
     
     # Calculate standard deviation directly from the 1D returns array using EWMA
     port_vol = port_returns.ewm(alpha=1-EWMA_LAMBDA).std().iloc[-1]     # O(T) Optimization: Standard deviation of 1D linear returns matches covariance matrix output
@@ -170,4 +200,18 @@ def portfolio_var(weights: dict[str, float], horizon: str, returns: pd.DataFrame
 
     
     # VaR = Tail-adjusted Z-score * Portfolio Volatility * Sqrt(Time)
-    return float(abs(latest_z * port_vol * time_scaler))
+    return {
+        "var_95": float(abs(latest_z_95 * port_vol * time_scaler)),
+        "var_99": float(abs(latest_z_99 * port_vol * time_scaler))
+    }
+
+def get_portfolio_risk_metrics(weights: dict[str, float], horizon: str, returns: pd.DataFrame) -> dict[str, float]:
+    """Wrapper function that aggregates standardized risk metrics for the LLM agent and portfolio optimizer."""
+    annual_vol = portfolio_volatility(weights, horizon, returns)
+    var_metrics = portfolio_var(weights, horizon, returns)
+    
+    return {
+        "annual_vol": annual_vol,
+        "var_95": var_metrics["var_95"],
+        "var_99": var_metrics["var_99"]
+    }
