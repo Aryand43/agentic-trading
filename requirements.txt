@@ -2,3 +2,5 @@ pandas
 numpy
 scipy
 yfinance
+google-genai
+python-dotenv
