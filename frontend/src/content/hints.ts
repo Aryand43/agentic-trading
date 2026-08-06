@@ -36,12 +36,12 @@ export const HINTS = {
   tickerVol: (ticker: string) =>
     `How volatile ${ticker} is. Higher vol → smaller position for the same conviction.`,
   horizons: {
-    '1d': '1-day signal — VWAP breakout / short-term momentum.',
-    '3d': '3-day signal — ConnorsRSI mean reversion.',
-    '5d': '5-day signal — Bollinger band volatility squeeze.',
-    '10d': '10-day signal — SMA(10)/SMA(50) momentum + RSI.',
-    '15d': '15-day signal — residual / overreaction reversal proxy.',
-    '1m': '1-month signal — short-term reversal proxy.',
-    '3m': '3-month signal — Jegadeesh–Titman momentum (skip last month).',
+    '1d': '1d — VWAP breakout momentum (price vs 20-bar mean, vol-scaled, RSI confirm).',
+    '3d': '3d — ConnorsRSI mean reversion (RSI + streak + percent rank).',
+    '5d': '5d — Bollinger squeeze breakout (band width × direction vs mid).',
+    '10d': '10d — SMA(10)/SMA(50) momentum blended with RSI(14).',
+    '15d': '15d — residual / overreaction reversal (z-score of 15d return).',
+    '1m': '1m — short-term reversal on z-scored 21d return.',
+    '3m': '3m — Jegadeesh–Titman momentum (63d form, skip last month).',
   } as Record<string, string>,
 } as const

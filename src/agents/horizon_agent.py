@@ -41,7 +41,7 @@ from src.backtest.performance_report import (
 from src.backtest.portfolio_sim import run_portfolio_backtest
 from src.backtest.splits import split_train_val_test
 from src.config import RESEARCH, RUNS_DIR
-from src.signals.strategies import STRATEGIES, _rsi
+from src.signals.strategies import STRATEGIES, _rsi, HORIZON_CATALOG, horizon_principle
 
 SignalFn = Callable[[pd.Series], float]
 
@@ -508,10 +508,13 @@ def run_horizon_agent(
                 # First discovery without prior report: horizon seed template
                 template_name = tmpl if tmpl in TEMPLATES else horizon_template
                 params = dict(prm) if prm else dict(TEMPLATES[template_name]["params"])
+                cat = HORIZON_CATALOG.get(horizon) or {}
+                principle = horizon_principle(horizon)
                 desc = (
                     f"Seed discovery `{template_name}` for {horizon} "
-                    f"(after baselines or as first hypothesis)."
-                )
+                    f"({cat.get('name', horizon)}). {principle} "
+                    f"Rule: {cat.get('rule', '')}"
+                ).strip()
                 name = name or f"{horizon}_{template_name}"
                 source = "seed"
         else:

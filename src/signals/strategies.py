@@ -219,33 +219,92 @@ def get_signal(ticker: str, horizon: str, prices: pd.Series) -> float:
         raise ValueError(f"Unknown horizon: {horizon}")
     return STRATEGIES[horizon](prices)
 
-"""
-Core formula/rule and description overview for each horizon
-1d — VWAP Breakout Momentum  
-- Core rule: compare last price to a 20-bar rolling average, scale by 20-bar volatility, then soften if RSI(3) does not confirm.  
-- Description: short-term momentum that buys when price breaks above its recent average and sells when it falls below, with signal strength reduced if very short-term momentum is weak.
 
-3d — ConnorsRSI Mean Reversion  
-- Core rule: average RSI(3), RSI of the up/down streak, and 100-bar return percent rank; low values become buy, high values become sell.  
-- Description: mean-reversion for a 3-day horizon; it looks for oversold conditions to buy and overbought conditions to sell using a blended short-term momentum score.
+# Structured catalog (core rule + description) for reports, agent seeds, and docs.
+# Kept machine-readable so discovery / desks can cite principle text without scraping markdown.
+HORIZON_CATALOG: dict[str, dict[str, str]] = {
+    "1d": {
+        "name": "VWAP Breakout Momentum",
+        "rule": (
+            "Compare last price to a 20-bar rolling average, scale by 20-bar volatility, "
+            "then soften if RSI(3) does not confirm."
+        ),
+        "description": (
+            "Short-term momentum that buys when price breaks above its recent average and "
+            "sells when it falls below, with signal strength reduced if very short-term momentum is weak."
+        ),
+    },
+    "3d": {
+        "name": "ConnorsRSI Mean Reversion",
+        "rule": (
+            "Average RSI(3), RSI of the up/down streak, and 100-bar return percent rank; "
+            "low values become buy, high values become sell."
+        ),
+        "description": (
+            "Mean-reversion for a 3-day horizon; looks for oversold conditions to buy and "
+            "overbought conditions to sell using a blended short-term momentum score."
+        ),
+    },
+    "5d": {
+        "name": "Bollinger Band Volatility Squeeze",
+        "rule": (
+            "Measure 20-bar Bollinger band width relative to its 126-bar minimum, then "
+            "multiply squeeze intensity by whether price is above or below the mid-band."
+        ),
+        "description": (
+            "When volatility is unusually low, treats a move away from the middle band as a "
+            "stronger directional breakout signal."
+        ),
+    },
+    "10d": {
+        "name": "SMA(10)/SMA(50) Momentum + RSI(14)",
+        "rule": (
+            "Combine the normalized gap between 10-day and 50-day moving averages (60%) "
+            "with RSI(14) centered at 50 (40%)."
+        ),
+        "description": (
+            "Medium-short momentum that favors a bullish stance when the fast average is above "
+            "the slow average and RSI is supportive."
+        ),
+    },
+    "15d": {
+        "name": "Fama-French Residual Reversal proxy",
+        "rule": (
+            "Z-score the most recent 15-day return versus the past 252 such returns, "
+            "invert the sign, and scale by 0.5."
+        ),
+        "description": (
+            "A 15-day reversal signal that sells after unusually strong recent returns and "
+            "buys after unusually weak recent returns."
+        ),
+    },
+    "1m": {
+        "name": "Low-Turnover Short-Term Reversal",
+        "rule": (
+            "Z-score the 21-day return against the prior year of 21-day returns, invert and scale by 0.5."
+        ),
+        "description": (
+            "A one-month reversal signal that expects strong recent performance to pull back and "
+            "weak recent performance to recover."
+        ),
+    },
+    "3m": {
+        "name": "Jegadeesh-Titman Momentum (skip last month)",
+        "rule": (
+            "Take the 63-day return ending 21 days ago, compare it to the history of 63-day "
+            "returns as a z-score, then scale by 0.5."
+        ),
+        "description": (
+            "Medium-term momentum that rewards strong prior 3-month performance while avoiding "
+            "the most recent month's short-term reversal effects."
+        ),
+    },
+}
 
-5d — Bollinger Band Volatility Squeeze  
-- Core rule: measure 20-bar Bollinger band width relative to its 126-bar minimum, then multiply squeeze intensity by whether price is above or below the mid-band.  
-- Description: when volatility is unusually low, the strategy treats a move away from the middle band as a stronger directional breakout signal.
 
-10d — SMA(10)/SMA(50) Momentum + RSI(14)  
-- Core rule: combine the normalized gap between 10-day and 50-day moving averages (60%) with RSI(14) centered at 50 (40%).  
-- Description: medium-short momentum that favors a bullish stance when the fast average is above the slow average and RSI is supportive.
-
-15d — Fama-French Residual Reversal proxy  
-- Core rule: z-score the most recent 15-day return versus the past 252 such returns, invert the sign, and scale by 0.5.  
-- Description: a 15-day reversal signal that sells after unusually strong recent returns and buys after unusually weak recent returns.
-
-1m — Low-Turnover Short-Term Reversal  
-- Core rule: z-score the 21-day return against the prior year of 21-day returns, invert and scale by 0.5.  
-- Description: a one-month reversal signal that expects strong recent performance to pull back and weak recent performance to recover.
-
-3m — Jegadeesh-Titman Momentum (skip last month)  
-- Core rule: take the 63-day return ending 21 days ago, compare it to the history of 63-day returns as a z-score, then scale by 0.5.  
-- Description: medium-term momentum that rewards strong prior 3-month performance while avoiding the most recent month’s short-term reversal effects.
-"""
+def horizon_principle(horizon: str) -> str:
+    """One-line principle text for agent reports / catalog seeds."""
+    meta = HORIZON_CATALOG.get(horizon) or {}
+    name = meta.get("name") or horizon
+    desc = meta.get("description") or meta.get("rule") or ""
+    return f"{name}: {desc}".strip()
