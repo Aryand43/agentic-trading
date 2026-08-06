@@ -8,16 +8,25 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.schemas import RunRequest, RunResponse
-from api.service import run_pipeline
+from api.schemas import (
+    AgentRequest,
+    AgentResponse,
+    BacktestRequest,
+    BacktestResponse,
+    RunRequest,
+    RunResponse,
+)
+from api.service import run_agent, run_backtest, run_pipeline
 
-app = FastAPI(title="Agentic Trading API", version="0.1.0")
+app = FastAPI(title="Agentic Trading API", version="0.3.0")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -34,5 +43,25 @@ def health() -> dict[str, str]:
 def run(request: RunRequest | None = None) -> RunResponse:
     try:
         return run_pipeline(request or RunRequest())
-    except Exception as exc:  # surface yfinance / data errors cleanly
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/backtest", response_model=BacktestResponse)
+def backtest(request: BacktestRequest | None = None) -> BacktestResponse:
+    try:
+        return run_backtest(request or BacktestRequest())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/agent", response_model=AgentResponse)
+def agent(request: AgentRequest | None = None) -> AgentResponse:
+    try:
+        return run_agent(request or AgentRequest())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc

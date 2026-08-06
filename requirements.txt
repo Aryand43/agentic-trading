@@ -2,3 +2,8 @@ pandas
 numpy
 scipy
 yfinance
+pytest
+pytest-asyncio
+playwright
+locust
+# Optional a11y: axe-playwright-python (install when running a11y e2e)

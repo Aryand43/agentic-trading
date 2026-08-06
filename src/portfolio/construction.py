@@ -13,6 +13,8 @@ Three steps, applied in order:
                                   portfolio risk lands at a target level.
 """
 
+from __future__ import annotations
+
 from src.config import HORIZONS
 
 

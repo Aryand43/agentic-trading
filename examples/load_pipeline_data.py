@@ -2,6 +2,9 @@
 
 Returns the dicts expected by ``construct_portfolio()`` in
 ``src/portfolio/construction.py``.
+
+Live desk defaults to **daily** multi-month history (research-compatible):
+signal lookbacks and yfinance reliability. Prefer cache over 1m intraday.
 """
 
 from __future__ import annotations
@@ -10,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from src.config import HORIZONS, TRADING
-from src.risk.engine.data_loader import fetch_market_data
+from src.risk.engine.data_loader import fetch_market_data, fetch_research_prices
 from src.risk.volatility import portfolio_volatility, stock_volatility
 from src.signals.strategies import get_signal
 
@@ -27,10 +30,48 @@ def _normalize_prices(raw: pd.Series | pd.DataFrame, tickers: list[str]) -> pd.D
 
 def _prepare_returns(prices: pd.DataFrame) -> pd.DataFrame:
     log_returns = np.log(prices / prices.shift(1))
-    dates = pd.Series(log_returns.index.date, index=log_returns.index)
-    is_new_day = dates != dates.shift(1)
-    log_returns[is_new_day] = 0.0
+    # Zero overnight gaps only for *intraday* panels (many bars per calendar day).
+    # For daily bars, every row is a new day — zeroing would wipe all returns.
+    if len(log_returns) > 1:
+        dates = pd.Series(
+            [ts.date() if hasattr(ts, "date") else ts for ts in log_returns.index],
+            index=log_returns.index,
+        )
+        bars_per_day = dates.groupby(dates).transform("count")
+        if int(bars_per_day.max()) > 1:
+            is_new_day = dates != dates.shift(1)
+            log_returns[is_new_day] = 0.0
     return log_returns.dropna()
+
+
+def _fetch_live_prices(tickers: list[str], provider: str) -> pd.DataFrame:
+    """Daily-first live fetch with research cache fallback (never depend on 5d/1m alone)."""
+    # 1) Explicit daily window matching TRADING defaults
+    try:
+        frame = fetch_market_data(
+            tickers,
+            provider=provider,
+            mode="live",
+            period=TRADING.get("period", "1y"),
+            interval=TRADING.get("interval", "1d"),
+            use_cache=True,
+        )
+        if frame is not None and not frame.empty:
+            return frame
+    except Exception:
+        pass
+
+    # 2) Research 1y/5y daily (reuses data/cache from backtests)
+    for period in ("1y", "3y", "5y"):
+        try:
+            frame = fetch_research_prices(tickers, period=period, use_cache=True)
+            if frame is not None and not frame.empty:
+                return frame
+        except Exception:
+            continue
+
+    # 3) Last-chance: generic research mode
+    return fetch_market_data(tickers, provider=provider, mode="research", use_cache=True)
 
 
 def load_pipeline_data(
@@ -41,8 +82,16 @@ def load_pipeline_data(
     target_volatility: float = DEFAULT_TARGET_VOLATILITY,
 ) -> tuple[dict[str, dict[str, float]], dict[str, float], float, float]:
     """Returns (signals_by_ticker_horizon, volatilities_by_ticker, portfolio_volatility, target_volatility)."""
-    tickers = tickers or TRADING["tickers"]
-    prices = _normalize_prices(fetch_market_data(tickers, provider=provider), tickers)
+    tickers = tickers or list(TRADING["tickers"])
+    prices = _normalize_prices(_fetch_live_prices(tickers, provider), tickers)
+    # Align to available columns if some tickers failed
+    tickers = [t for t in tickers if t in prices.columns]
+    if not tickers:
+        raise ValueError(
+            "No price data for live snapshot. Run a Backtest once to fill data/cache/, "
+            "or check network access to Yahoo Finance."
+        )
+
     returns = _prepare_returns(prices)
 
     signals_by_ticker_horizon = {

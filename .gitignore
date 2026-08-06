@@ -12,3 +12,7 @@ env/
 .idea/
 node_modules/
 frontend/dist/
+data/cache/
+reports/
+runs/
+*.log

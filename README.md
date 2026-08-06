@@ -1,13 +1,20 @@
 # Agentic Trading
 
-Multi-horizon trading pipeline that combines signal generation, risk metrics, and portfolio construction.
+Multi-horizon trading **research desk**: signal generation, risk metrics, portfolio
+construction, historical backtesting, segmented reports, and a strategy discovery agent loop.
+
+Header should read **Research desk · v0.3**. If you still see “Pipeline desk” or a bare
+`yfinance … (5d/1m)` banner, you are on a **stale** frontend/API process — hard-restart below.
 
 ## Structure
 
 - `src/signals/` — per-horizon trading signals (1d–3m)
-- `src/risk/` — volatility and portfolio risk
-- `src/portfolio/` — combines signals and risk into position weights
-- `examples/` — demo scripts with fake data
+- `src/risk/` — volatility and portfolio risk (long/short aware)
+- `src/portfolio/` — blends signals + risk into position weights
+- `src/backtest/` — daily engine, metrics, segment reports, TA baselines, portfolio sim
+- `src/agents/` — one-horizon strategy discovery loop
+- `examples/` — CLI demos
+- `api/` + `frontend/` — research control panel
 
 ## Setup
 
@@ -15,23 +22,55 @@ Multi-horizon trading pipeline that combines signal generation, risk metrics, an
 pip install -r requirements.txt
 ```
 
-## Run
+## Hard restart (recommended)
+
+Kills stray API/UI processes, then starts a clean stack on **:8000** and **:5173**:
 
 ```bash
+# free ports
+lsof -ti :8000,:5173,:5174 2>/dev/null | xargs kill -9 2>/dev/null || true
+
+# terminal 1 — API (from repo root, venv on)
+pip install -r api/requirements.txt
+uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
+
+# terminal 2 — UI
+cd frontend && npm install && npm run dev -- --host 127.0.0.1 --port 5173 --force
+```
+
+Open **http://127.0.0.1:5173**
+
+Confirm: title **Research desk**, tabs **Backtest | Live | Agent**, green **Backtest window**
+with **Start date / End date**, and eyebrow **Agentic Trading · v0.3**.
+
+## Research control panel
+
+### Modes
+
+| Mode | What it does |
+|------|----------------|
+| **Backtest** (default) | Date window, capital, equity curve, baselines, regime·vol·industry segments |
+| **Live** | Point-in-time snapshot from recent **daily** bars (cache-friendly) |
+| **Agent** | Hypothesis → backtest → insights loop for one horizon (1–5 iters) |
+
+### API
+
+- `POST /api/run` — live pipeline (daily history first)  
+- `POST /api/backtest` — `start_date` + `end_date` *or* `period`, capital, flags  
+- `POST /api/agent` — horizon discovery loop  
+
+## CLI
+
+```bash
+python -m examples.run_backtest --horizon 10d --portfolio --agent --agent-iters 2 --no-industry
+python -m examples.run_agent --horizon 10d --iters 3
 python -m examples.run_portfolio_demo
 ```
 
-## Dashboard (frontend)
+Reports → `reports/`. Agent runs → `runs/`. Price cache → `data/cache/`.
 
-Thin FastAPI wrapper + React UI. Does not modify `src/`.
+Optional LLM text: `OPENAI_API_KEY`.
 
-```bash
-# terminal 1 — API (from repo root, with venv activated)
-pip install -r api/requirements.txt
-uvicorn api.main:app --reload --port 8000
+## Paper note
 
-# terminal 2 — UI
-cd frontend && npm install && npm run dev
-```
-
-Open http://localhost:5173
+Draft a paper only after backtest + agent runs produce metrics you can report.

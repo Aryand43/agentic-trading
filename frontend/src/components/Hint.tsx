@@ -20,11 +20,11 @@ export function Hint({ text, children, className = '', side = 'top' }: HintProps
       : 'bottom-full left-1/2 -mb-px -translate-x-1/2 border-4 border-transparent border-b-ink'
 
   return (
-    <span className={`group/hint relative inline-flex items-center ${className}`}>
+    <span className={`group/hint relative inline-block max-w-full align-baseline ${className}`}>
       {children}
       <span
         role="tooltip"
-        className={`pointer-events-none absolute ${position} left-1/2 z-50 w-56 -translate-x-1/2 rounded-lg border border-line bg-ink px-3 py-2 text-left text-xs font-normal normal-case tracking-normal text-fog opacity-0 shadow-[0_12px_30px_-12px_rgba(15,28,26,0.55)] transition duration-150 group-hover/hint:opacity-100`}
+        className={`pointer-events-none invisible absolute ${position} left-1/2 z-20 w-56 max-w-[min(14rem,70vw)] -translate-x-1/2 rounded-lg border border-line bg-ink px-3 py-2 text-left text-xs font-normal normal-case tracking-normal text-fog opacity-0 shadow-[0_12px_30px_-12px_rgba(15,28,26,0.55)] transition duration-150 group-hover/hint:visible group-hover/hint:opacity-100`}
       >
         {text}
         <span aria-hidden className={`absolute ${arrow}`} />

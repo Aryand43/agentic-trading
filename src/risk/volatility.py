@@ -33,23 +33,25 @@ def _validate_stock_inputs(ticker: str, returns: pd.Series):
         raise ValueError(f"Returns data for {ticker} contains NaNs. Clean data upstream.")
 
 def _validate_portfolio_inputs(weights: dict[str, float], returns: pd.DataFrame):
-    """Guards against bad weights, missing columns, empty data, and NaNs."""
+    """Guards against bad weights, missing columns, empty data, and NaNs.
+
+    Supports long/short books: negative weights are allowed. Net sum need not
+    equal 1.0 (gross exposure is unconstrained here); require non-zero gross.
+    """
     if returns.empty:
         raise ValueError("Returns DataFrame is empty.")
-        
+
     tickers = list(weights.keys())
     missing = set(tickers) - set(returns.columns)
     if missing:
         raise ValueError(f"Missing returns columns for tickers: {missing}")
-        
+
     if returns[tickers].isna().values.any():
         raise ValueError("Returns data contains NaNs. Clean data upstream before passing to risk engine.")
-        
-    weight_sum = sum(weights.values())
-    if not np.isclose(weight_sum, 1.0):
-        raise ValueError(f"Portfolio weights must sum to 1.0. Current sum: {weight_sum}")
-    if any(w < 0 for w in weights.values()):
-        raise ValueError("Negative weights detected. Risk engine currently assumes long-only portfolios.")
+
+    gross = sum(abs(w) for w in weights.values())
+    if gross <= 0:
+        raise ValueError("Portfolio weights have zero gross exposure.")
 
 def stock_volatility(ticker: str, horizon: str, returns: pd.Series) -> float:
     """Standard deviation of `ticker` returns over `horizon`."""

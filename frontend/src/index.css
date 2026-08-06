@@ -4,15 +4,15 @@
   --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --color-ink: #0f1c1a;
-  --color-mist: #e6ecea;
-  --color-fog: #f3f6f5;
-  --color-panel: #ffffffcc;
-  --color-line: #c5d2ce;
+  --color-mist: #e8eeeb;
+  --color-fog: #f5f7f6;
+  --color-panel: #ffffff;
+  --color-line: #d0dbd6;
   --color-teal: #0f766e;
-  --color-teal-soft: #99f6e4;
+  --color-teal-soft: #ccfbf1;
   --color-rose: #be123c;
-  --color-rose-soft: #fecdd3;
-  --color-muted: #5b6f6a;
+  --color-rose-soft: #ffe4e6;
+  --color-muted: #5c6b66;
 }
 
 @layer base {
@@ -27,9 +27,29 @@
     font-family: var(--font-sans);
     color: var(--color-ink);
     background:
-      radial-gradient(ellipse 80% 50% at 10% -10%, #b8e6d9 0%, transparent 55%),
-      radial-gradient(ellipse 60% 40% at 100% 0%, #d7e8e3 0%, transparent 50%),
-      linear-gradient(165deg, #eef3f1 0%, #dfe8e4 45%, #e8eeec 100%);
-    background-attachment: fixed;
+      radial-gradient(ellipse 70% 40% at 0% 0%, rgba(15, 118, 110, 0.07) 0%, transparent 55%),
+      linear-gradient(180deg, #f5f7f6 0%, #eef2f0 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Native date controls are wide; keep them inside grid cells */
+  input[type='date'],
+  input[type='number'],
+  select {
+    color-scheme: light;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
