@@ -12,6 +12,10 @@ export const HINTS = {
     'Final portfolio allocation. Positive = long, negative = short. Sized down for jumpy names and scaled to target risk.',
   horizonSignals:
     'Raw signal from each holding-period strategy before blending. Teal leans buy, rose leans sell.',
+  volScaleMismatch:
+    'Book-level and per-ticker volatility are reported on different scales by the API, so do not read them as directly comparable numbers.',
+  limitBreach:
+    'The returned book exceeds a limit you set. The API applies its volatility target after capping positions, which can scale the book back past both limits.',
   portfolioVol: 'How jumpy the equal-weight basket is right now — used to scale the whole book.',
   targetVol: 'Risk level we aim for. If the book is too wild, positions get shrunk; if too calm, grown.',
   equityCurve:
@@ -31,8 +35,21 @@ export const HINTS = {
   agentHorizon: 'Which holding-period strategy agent to run (one horizon = one agent).',
   agentIters: 'Number of discovery loops (1–5). More iters → longer runtime.',
   segments: 'Where the strategy wins/loses: bull vs bear, vol buckets, industry groups.',
+  horizonInactive:
+    'This strategy returned nothing for every ticker in this window — almost always too little price history for its lookback, not a neutral call. Shown blank rather than as a 0.00 vote.',
+  segmentDays:
+    'Trading days actually in this segment, and their share of the sample. Small segments make the numbers beside them unreliable.',
+  segmentNoCount:
+    'This split does not report per-segment day counts, so the numbers beside it cannot be weighted by sample size.',
+  segmentEmpty:
+    'No trading activity fell into this segment, so there is nothing to measure. Shown as blank rather than as zeros.',
+  segmentReturn: 'Total return earned on the days belonging to this segment only.',
+  sharpe: 'Return per unit of risk. Above 1 is good; below 0 means the strategy lost money.',
+  hitRate: 'Share of days the strategy made money. 50% is a coin flip.',
   agentHistory: 'Each hypothesis iteration with train/test Sharpe and analytical insights.',
   windowStrip: 'Actual data range used for this run after download and filters.',
+  segmentThin: (days: number) =>
+    `Fewer than ${days} trading days in this segment. Treat these numbers as indicative, not conclusive.`,
   tickerVol: (ticker: string) =>
     `How volatile ${ticker} is. Higher vol → smaller position for the same conviction.`,
   horizons: {

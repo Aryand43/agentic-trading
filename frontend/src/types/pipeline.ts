@@ -21,7 +21,8 @@ export type PipelineResult = {
 export type EquityPoint = {
   date: string
   equity: number
-  series?: string
+  /** Always present: Pydantic defaults it to "strategy". */
+  series: string
 }
 
 export type MetricsBlock = {
@@ -30,8 +31,9 @@ export type MetricsBlock = {
   sharpe: number
   max_drawdown: number
   hit_rate: number
-  signal_hit_rate?: number
-  utility?: number
+  /** Always present: Pydantic defaults these to 0.0. */
+  signal_hit_rate: number
+  utility: number
   turnover: number
   n_days: number
   final_equity: number
