@@ -1,82 +1,158 @@
-import type { MetricsBlock } from '../types/pipeline'
+import { Hint, HintLabel } from './Hint'
+import { HINTS } from '../content/hints'
+import { fmtNum, fmtPct, TONE_TEXT, toneOf } from '../lib/format'
+import {
+  buildSegmentGroups,
+  THIN_SEGMENT_DAYS,
+  type SegmentGroup,
+  type SegmentRow,
+  type SegmentsPayload,
+} from '../lib/segments'
 
-function fmtPct(x: number | undefined): string {
-  if (x == null || Number.isNaN(x)) return '—'
-  return `${(x * 100).toFixed(1)}%`
+type Props = { segments: SegmentsPayload }
+
+const BASIS_NOTE: Record<SegmentGroup['basis'], string> = {
+  time: 'Time split',
+  holdings: 'Holdings split',
 }
 
-function fmtSharpe(x: number | undefined): string {
-  if (x == null || Number.isNaN(x)) return '—'
-  return x.toFixed(2)
-}
-
-function isMetrics(v: unknown): v is MetricsBlock {
-  return Boolean(v) && typeof v === 'object' && 'sharpe' in (v as object)
-}
-
-type Props = {
-  segments: {
-    regime?: Record<string, unknown>
-    volatility?: Record<string, unknown>
-    industry?: Record<string, unknown>
+function DaysCell({ row, group }: { row: SegmentRow; group: SegmentGroup }) {
+  if (!group.hasCounts) {
+    return (
+      <td className="py-2.5 pr-4 text-right">
+        <Hint text={HINTS.segmentNoCount} side="top">
+          <span className="cursor-help font-mono text-[12px] text-muted/60">n/a</span>
+        </Hint>
+      </td>
+    )
   }
-}
-
-function pickRows(
-  block: Record<string, unknown> | undefined,
-  preferred: string[],
-): { name: string; m: MetricsBlock }[] {
-  if (!block) return []
-  const keys = preferred.filter((k) => isMetrics(block[k]))
-  const rest = Object.keys(block).filter(
-    (k) => !k.startsWith('_') && isMetrics(block[k]) && !keys.includes(k),
-  )
-  return [...keys, ...rest].map((name) => ({ name, m: block[name] as MetricsBlock }))
-}
-
-function SegmentBlock({
-  title,
-  rows,
-}: {
-  title: string
-  rows: { name: string; m: MetricsBlock }[]
-}) {
-  if (!rows.length) return null
+  if (row.days == null) {
+    return <td className="py-2.5 pr-4 text-right font-mono text-[12px] text-muted/60">—</td>
+  }
   return (
-    <div>
-      <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted">{title}</h3>
-      <ul className="space-y-0 divide-y divide-line/70 border-t border-line">
-        {rows.map(({ name, m }) => (
-          <li key={name} className="flex items-baseline justify-between gap-3 py-2 text-sm">
-            <span className="font-medium capitalize text-ink">{name}</span>
-            <span className="font-mono text-[12px] tabular-nums text-muted">
-              S {fmtSharpe(m.sharpe)}
-              <span className="mx-1.5 text-line">·</span>
-              {fmtPct(m.total_return)}
-              <span className="mx-1.5 text-line">·</span>
-              hit {fmtPct(m.hit_rate)}
+    <td className="py-2.5 pr-4 text-right">
+      <span className="font-mono text-[12px] tabular-nums text-ink">{row.days}d</span>
+      {row.share != null ? (
+        <span className="ml-1.5 font-mono text-[11px] tabular-nums text-muted">
+          {fmtPct(row.share, 0)}
+        </span>
+      ) : null}
+    </td>
+  )
+}
+
+function SegmentRowView({ row, group }: { row: SegmentRow; group: SegmentGroup }) {
+  const metricCols = 3
+
+  return (
+    <tr className="border-b border-line/70 last:border-0">
+      <th scope="row" className="py-2.5 pr-4 text-left align-middle font-sans font-medium text-ink">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {row.label}
+          {row.status === 'thin' ? (
+            <Hint text={HINTS.segmentThin(THIN_SEGMENT_DAYS)} side="top">
+              <span className="cursor-help rounded border border-rose/30 bg-rose-soft/40 px-1.5 py-px font-mono text-[10px] font-medium uppercase tracking-wide text-rose">
+                low sample
+              </span>
+            </Hint>
+          ) : null}
+        </span>
+      </th>
+
+      <DaysCell row={row} group={group} />
+
+      {row.status === 'empty' ? (
+        <td
+          colSpan={metricCols}
+          className="py-2.5 text-right text-[12px] italic text-muted/80"
+        >
+          <Hint text={HINTS.segmentEmpty} side="top">
+            <span className="cursor-help border-b border-dotted border-muted/40 not-italic font-mono text-[11px] uppercase tracking-wide">
+              no activity
             </span>
-          </li>
-        ))}
-      </ul>
-    </div>
+          </Hint>
+        </td>
+      ) : (
+        <>
+          <td
+            className={`py-2.5 pr-4 text-right font-mono text-[13px] tabular-nums ${TONE_TEXT[toneOf(row.metrics.sharpe)]}`}
+          >
+            {fmtNum(row.metrics.sharpe)}
+          </td>
+          <td
+            className={`py-2.5 pr-4 text-right font-mono text-[13px] tabular-nums ${TONE_TEXT[toneOf(row.metrics.total_return)]}`}
+          >
+            {fmtPct(row.metrics.total_return)}
+          </td>
+          <td className="py-2.5 text-right font-mono text-[13px] tabular-nums text-ink">
+            {fmtPct(row.metrics.hit_rate)}
+          </td>
+        </>
+      )}
+    </tr>
+  )
+}
+
+function GroupTable({ group }: { group: SegmentGroup }) {
+  return (
+    <section className="min-w-0">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 className="text-sm font-semibold tracking-tight text-ink">{group.title}</h3>
+        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted/70">
+          {BASIS_NOTE[group.basis]}
+        </span>
+      </div>
+      <div className="mt-2 overflow-x-auto">
+        <table className="w-full min-w-[420px] text-left text-sm">
+          <thead>
+            <tr className="border-b border-line text-[10px] uppercase tracking-wide text-muted">
+              <th scope="col" className="pb-2 pr-4 font-medium">
+                Segment
+              </th>
+              <th scope="col" className="pb-2 pr-4 text-right font-medium">
+                <HintLabel label="Days" text={HINTS.segmentDays} />
+              </th>
+              <th scope="col" className="pb-2 pr-4 text-right font-medium">
+                <HintLabel label="Sharpe" text={HINTS.sharpe} />
+              </th>
+              <th scope="col" className="pb-2 pr-4 text-right font-medium">
+                <HintLabel label="Return" text={HINTS.segmentReturn} />
+              </th>
+              <th scope="col" className="pb-2 text-right font-medium">
+                <HintLabel label="Hit rate" text={HINTS.hitRate} />
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {group.rows.map((row) => (
+              <SegmentRowView key={row.key} row={row} group={group} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {group.unclassifiedDays ? (
+        <p className="mt-1.5 font-mono text-[11px] text-muted">
+          {group.unclassifiedDays} day{group.unclassifiedDays === 1 ? '' : 's'} unclassified, not
+          shown above.
+        </p>
+      ) : null}
+    </section>
   )
 }
 
 export function SegmentReport({ segments }: Props) {
-  const regime = pickRows(segments.regime, ['bull', 'bear'])
-  const vol = pickRows(segments.volatility, ['low', 'mid', 'high'])
-  const industry = pickRows(segments.industry, []).filter((r) => r.name !== '_ticker_sector_map')
+  const groups = buildSegmentGroups(segments)
 
-  if (!regime.length && !vol.length && !industry.length) {
+  if (!groups.length) {
     return <p className="text-sm text-muted">No segment data for this run.</p>
   }
 
   return (
-    <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-      <SegmentBlock title="Regime" rows={regime} />
-      <SegmentBlock title="Volatility" rows={vol} />
-      <SegmentBlock title="Industry" rows={industry} />
+    <div className="flex min-w-0 flex-col gap-7">
+      {groups.map((group) => (
+        <GroupTable key={group.key} group={group} />
+      ))}
     </div>
   )
 }

@@ -15,12 +15,17 @@ type AsyncState<T> = {
   error: string | null
 }
 
-function useAsyncAction<TReq, TRes>(
-  action: (req: TReq) => Promise<TRes>,
-): AsyncState<TRes> & {
+export type AsyncAction<TReq, TRes> = AsyncState<TRes> & {
   run: (request?: TReq) => Promise<TRes | null>
   clear: () => void
-} {
+  /** Drop the error without discarding data. Used to clear one mode's stale
+   *  failure when another mode starts a run. */
+  clearError: () => void
+}
+
+function useAsyncAction<TReq, TRes>(
+  action: (req: TReq) => Promise<TRes>,
+): AsyncAction<TReq, TRes> {
   const [data, setData] = useState<TRes | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,7 +54,9 @@ function useAsyncAction<TReq, TRes>(
     setError(null)
   }, [])
 
-  return { data, loading, error, run, clear }
+  const clearError = useCallback(() => setError(null), [])
+
+  return { data, loading, error, run, clear, clearError }
 }
 
 export function usePipeline() {
