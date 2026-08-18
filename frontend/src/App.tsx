@@ -2,6 +2,7 @@ import { useCallback, useReducer } from 'react'
 import { AgentPanel } from './components/AgentPanel'
 import { BacktestPanel } from './components/BacktestPanel'
 import { ControlPanel } from './components/ControlPanel'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { LivePanel } from './components/LivePanel'
 import { useAgent, useBacktest, usePipeline } from './hooks/usePipeline'
 import { parseTickers } from './lib/format'
@@ -30,6 +31,12 @@ export default function App() {
   )
 
   const loading = pipeline.loading || backtest.loading || agent.loading
+
+  const handleCancel = useCallback(() => {
+    pipeline.cancel()
+    backtest.cancel()
+    agent.cancel()
+  }, [pipeline, backtest, agent])
 
   // Attribute the failure so a stale banner can never be mistaken for the
   // active mode's result. Errors are also cleared across modes on every run.
@@ -102,41 +109,58 @@ export default function App() {
         <p className="font-mono text-[11px] text-muted">{DESK_VERSION}</p>
       </header>
 
-      <ControlPanel
-        params={params}
-        onChange={onChange}
-        onApplyPreset={onApplyPreset}
-        loading={loading}
-        onRun={handleRun}
-      />
+      <main className="flex min-w-0 flex-col gap-8">
+        <ErrorBoundary name="Run controls">
+          <ControlPanel
+            params={params}
+            onChange={onChange}
+            onApplyPreset={onApplyPreset}
+            loading={loading}
+            onRun={handleRun}
+            onCancel={handleCancel}
+          />
+        </ErrorBoundary>
 
-      {errorText ? (
-        <div
-          role="alert"
-          className="rounded-lg border border-rose/20 bg-rose-soft/40 px-4 py-3 text-sm animate-[fadeIn_0.25s_ease-out]"
-        >
-          <p className="font-medium text-ink">{failure?.mode} run failed</p>
-          <p className="mt-0.5 text-rose/95">{errorText}</p>
-        </div>
-      ) : null}
+        {errorText ? (
+          <div
+            role="alert"
+            className="rounded-lg border border-rose/20 bg-rose-soft/40 px-4 py-3 text-sm animate-[fadeIn_0.25s_ease-out]"
+          >
+            <p className="font-medium text-ink">{failure?.mode} run failed</p>
+            <p className="mt-0.5 text-rose/95">{errorText}</p>
+          </div>
+        ) : null}
 
-      {!hasResults && !loading ? (
-        <p className="text-center text-sm text-muted">
-          Choose a window, then run a <span className="text-ink">backtest</span>.
-        </p>
-      ) : null}
+        {!hasResults && !loading ? (
+          <p className="text-center text-sm text-muted">
+            Choose a window, then run a <span className="text-ink">backtest</span>.
+          </p>
+        ) : null}
 
-      {backtest.data ? <BacktestPanel data={backtest.data} /> : null}
-      {agent.data ? <AgentPanel data={agent.data} /> : null}
-      {pipeline.data ? (
-        <LivePanel
-          data={pipeline.data}
-          requested={{
-            maxPosition: params.maxPosition,
-            grossExposure: params.grossExposure,
-          }}
-        />
-      ) : null}
+        {backtest.data ? (
+          <ErrorBoundary name="Backtest results">
+            <BacktestPanel data={backtest.data} />
+          </ErrorBoundary>
+        ) : null}
+
+        {agent.data ? (
+          <ErrorBoundary name="Agent results">
+            <AgentPanel data={agent.data} />
+          </ErrorBoundary>
+        ) : null}
+
+        {pipeline.data ? (
+          <ErrorBoundary name="Live book">
+            <LivePanel
+              data={pipeline.data}
+              requested={{
+                maxPosition: params.maxPosition,
+                grossExposure: params.grossExposure,
+              }}
+            />
+          </ErrorBoundary>
+        ) : null}
+      </main>
     </div>
   )
 }
