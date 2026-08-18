@@ -35,6 +35,8 @@ export const HINTS = {
   agentHorizon: 'Which holding-period strategy agent to run (one horizon = one agent).',
   agentIters: 'Number of discovery loops (1–5). More iters → longer runtime.',
   segments: 'Where the strategy wins/loses: bull vs bear, vol buckets, industry groups.',
+  horizonInactive:
+    'This strategy returned nothing for every ticker in this window — almost always too little price history for its lookback, not a neutral call. Shown blank rather than as a 0.00 vote.',
   segmentDays:
     'Trading days actually in this segment, and their share of the sample. Small segments make the numbers beside them unreliable.',
   segmentNoCount:

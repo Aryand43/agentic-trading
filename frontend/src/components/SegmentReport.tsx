@@ -103,7 +103,7 @@ function GroupTable({ group }: { group: SegmentGroup }) {
         </span>
       </div>
       <div className="mt-2 overflow-x-auto">
-        <table className="w-full min-w-[420px] text-left text-sm">
+        <table className="w-full min-w-105 text-left text-sm">
           <thead>
             <tr className="border-b border-line text-[10px] uppercase tracking-wide text-muted">
               <th scope="col" className="pb-2 pr-4 font-medium">

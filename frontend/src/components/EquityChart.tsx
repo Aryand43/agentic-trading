@@ -24,7 +24,6 @@ const SERIES_COLORS: Record<string, string> = {
 type Props = {
   equityCurve: EquityPoint[]
   baselineCurves?: Record<string, EquityPoint[]>
-  initialCapital: number
 }
 
 export function EquityChart({ equityCurve, baselineCurves = {} }: Props) {

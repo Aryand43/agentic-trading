@@ -77,7 +77,6 @@ export function BacktestPanel({ data }: { data: BacktestResult }) {
             <EquityChart
               equityCurve={data.equity_curve}
               baselineCurves={data.baseline_curves}
-              initialCapital={data.initial_capital}
             />
           </Suspense>
         </div>
