@@ -36,6 +36,7 @@ export type MetricsBlock = {
   n_days: number
   final_equity: number
   start_equity: number
+  low_sample?: boolean
 }
 
 export type WindowInfo = {
@@ -58,6 +59,63 @@ export type ResearchWindows = {
   test?: SplitWindow | null
 }
 
+export type TradeAuditRow = {
+  trade_id: string
+  ticker: string
+  signal_date: string
+  signal_horizon: string
+  signal_value: number
+  signal_side: string
+  entry_date?: string | null
+  entry_price?: number | null
+  exit_date?: string | null
+  exit_price?: number | null
+  quantity?: number
+  notional?: number
+  position_direction: string
+  take_profit_threshold?: number | null
+  stop_loss_threshold?: number | null
+  exit_reason?: string | null
+  gross_pnl?: number | null
+  transaction_cost?: number
+  net_pnl?: number | null
+  return?: number | null
+  portfolio_weight?: number
+  price_source?: string
+}
+
+export type SignalEventRow = {
+  date: string
+  ticker: string
+  horizon: string
+  signal_value: number
+  signal_side: string
+  conviction?: number | null
+  weight?: number | null
+}
+
+export type RiskComparisonRow = {
+  method: string
+  horizon: string
+  confidence?: number | null
+  predicted_risk?: number | null
+  realized_risk?: number | null
+  error?: number | null
+  error_metric?: string | null
+  breach_rate?: number | null
+  n_obs: number
+  sample_start?: string | null
+  sample_end?: string | null
+  low_sample?: boolean
+  risk_type?: string | null
+}
+
+export type PositionPoint = {
+  date: string
+  ticker: string
+  weight: number
+}
+
 export type BacktestRequest = {
   tickers?: string[] | null
   period?: string
@@ -70,6 +128,12 @@ export type BacktestRequest = {
   include_baselines?: boolean
   include_segments?: boolean
   baselines?: string[]
+  take_profit_pct?: number | null
+  stop_loss_pct?: number | null
+  side_mode?: string | null
+  rebalance_every?: number | null
+  cost_bps?: number | null
+  slippage_bps?: number | null
 }
 
 export type BacktestResult = {
@@ -87,6 +151,15 @@ export type BacktestResult = {
     industry?: Record<string, MetricsBlock | Record<string, unknown>>
   }
   portfolios?: Record<string, unknown>
+  run_id?: string | null
+  trading_rules?: Record<string, unknown>
+  trades?: TradeAuditRow[]
+  trades_truncated?: boolean
+  signal_events?: SignalEventRow[]
+  signal_events_truncated?: boolean
+  position_history?: PositionPoint[]
+  risk_comparison?: RiskComparisonRow[]
+  artifact_paths?: Record<string, string>
 }
 
 export type AgentRequest = {
@@ -114,6 +187,7 @@ export type AgentIteration = {
   code_hash: string
   portfolios?: Record<string, unknown>
   test_summary?: Record<string, number>
+  source?: string
 }
 
 export type LeaderboardRow = {

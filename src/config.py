@@ -59,7 +59,16 @@ RESEARCH = {
     "stagnation_iters": 3,
     "rebalance_every": 5,  # trading days between portfolio rebalances
     "warmup_bars": 260,  # need ~1y history for long-horizon signals
+    "take_profit_pct": 0.08,
+    "stop_loss_pct": 0.04,
+    "slippage_bps": 0.0,
+    "side_mode": "long_short",
+    "long_threshold": 0.05,
+    "short_threshold": 0.05,
 }
+
+# Flag segments / risk rows with fewer than this many trading days.
+MIN_SAMPLE_TRADING_DAYS = 120
 
 # Persistent strategy catalog / leaderboard root
 CATALOG_DIR = ROOT / "runs" / "catalog"

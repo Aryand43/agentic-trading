@@ -31,6 +31,10 @@ export const HINTS = {
   agentHorizon: 'Which holding-period strategy agent to run (one horizon = one agent).',
   agentIters: 'Number of discovery loops (1–5). More iters → longer runtime.',
   segments: 'Where the strategy wins/loses: bull vs bear, vol buckets, industry groups.',
+  tradeAudit:
+    'One row per fill: signal date, horizon, entry/exit, reason, and net PnL. Click a row to trace signal → weight → trade.',
+  riskComparison:
+    'Walk-forward comparison of historical std, historical VaR, and EWMA/Cornish-Fisher. Missing values show as dashes, not zeros.',
   agentHistory: 'Each hypothesis iteration with train/test Sharpe and analytical insights.',
   windowStrip: 'Actual data range used for this run after download and filters.',
   tickerVol: (ticker: string) =>

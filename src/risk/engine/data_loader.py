@@ -99,6 +99,8 @@ def _cache_key(
     provider: str,
     start: str | None = None,
     end: str | None = None,
+    *,
+    ohlc: bool = False,
 ) -> str:
     payload = json.dumps(
         {
@@ -108,6 +110,7 @@ def _cache_key(
             "provider": provider,
             "start": start,
             "end": end,
+            "ohlc": ohlc,
         },
         sort_keys=True,
     )
@@ -439,3 +442,166 @@ def fetch_benchmark(
         end=end,
     )
     return frame[symbol].dropna()
+
+
+OHLC_FIELDS = ("Open", "High", "Low", "Close")
+
+
+def _extract_ohlc_field(raw: pd.DataFrame | pd.Series, tickers: list[str], field: str) -> pd.DataFrame | None:
+    """Pull one OHLC field from a yfinance download. Returns None if absent."""
+    if raw is None or (hasattr(raw, "empty") and raw.empty):
+        return None
+    if isinstance(raw, pd.Series):
+        if field != "Close":
+            return None
+        frame = raw.to_frame(name=tickers[0] if tickers else "Close")
+        return _normalize_close(frame, tickers)
+
+    if isinstance(raw.columns, pd.MultiIndex):
+        level0 = raw.columns.get_level_values(0)
+        level1 = raw.columns.get_level_values(1)
+        if field in level0:
+            piece = raw[field].copy()
+        elif field in level1:
+            piece = raw.xs(field, axis=1, level=1).copy()
+        else:
+            return None
+        try:
+            return _normalize_close(piece, tickers)
+        except ValueError:
+            return None
+
+    if field in raw.columns and len(tickers) == 1:
+        piece = raw[[field]].rename(columns={field: tickers[0]})
+        try:
+            return _normalize_close(piece, tickers)
+        except ValueError:
+            return None
+    return None
+
+
+def _ohlc_cache_paths(key: str) -> tuple[Path, Path]:
+    DATA_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    return DATA_CACHE_DIR / f"{key}_ohlc.pkl", DATA_CACHE_DIR / f"{key}_ohlc.json"
+
+
+def _try_read_ohlc_cache(
+    tickers: list[str],
+    period: str | None,
+    interval: str,
+    provider: str,
+    start: str | None = None,
+    end: str | None = None,
+) -> dict[str, pd.DataFrame] | None:
+    cache_file, _ = _ohlc_cache_paths(
+        _cache_key(tickers, period, interval, provider, start, end, ohlc=True)
+    )
+    if not cache_file.exists():
+        return None
+    try:
+        cached = pd.read_pickle(cache_file)
+        if not isinstance(cached, dict) or "Close" not in cached:
+            return None
+        out: dict[str, pd.DataFrame] = {}
+        for field, frame in cached.items():
+            sliced = _slice_window(frame, start, end)
+            if sliced is not None and not sliced.empty:
+                out[field] = sliced
+        return out if "Close" in out else None
+    except Exception:
+        return None
+
+
+def _write_ohlc_cache(
+    panels: dict[str, pd.DataFrame],
+    tickers: list[str],
+    period: str | None,
+    interval: str,
+    provider: str,
+    start: str | None = None,
+    end: str | None = None,
+) -> None:
+    cache_file, meta_file = _ohlc_cache_paths(
+        _cache_key(tickers, period, interval, provider, start, end, ohlc=True)
+    )
+    try:
+        pd.to_pickle(panels, cache_file)
+        close = panels["Close"]
+        meta_file.write_text(
+            json.dumps(
+                {
+                    "tickers": list(close.columns),
+                    "period": period,
+                    "interval": interval,
+                    "provider": provider,
+                    "start": start,
+                    "end": end,
+                    "fields": list(panels.keys()),
+                    "rows": len(close),
+                    "ohlc": True,
+                },
+                indent=2,
+            )
+        )
+    except Exception:
+        pass
+
+
+def _panels_from_download(data: pd.DataFrame | pd.Series, tickers: list[str]) -> dict[str, pd.DataFrame]:
+    panels: dict[str, pd.DataFrame] = {}
+    close = _extract_ohlc_field(data, tickers, "Close")
+    if close is None:
+        close = _normalize_close(_close_from_download(data, tickers), tickers)
+    panels["Close"] = close
+    aligned = list(close.columns)
+    for field in ("Open", "High", "Low"):
+        piece = _extract_ohlc_field(data, aligned, field)
+        if piece is None or piece.empty:
+            continue
+        piece = piece.reindex(index=close.index, columns=aligned)
+        if piece.notna().any().any():
+            panels[field] = piece
+    return panels
+
+
+def fetch_research_ohlc(
+    tickers: list[str] | None = None,
+    period: str | None = None,
+    use_cache: bool = True,
+    *,
+    start: str | None = None,
+    end: str | None = None,
+) -> dict[str, pd.DataFrame]:
+    """Daily Open/High/Low/Close panels for research backtests.
+
+    Close is always present. Open/High/Low are omitted when the source does
+    not provide them — callers must not invent those prices.
+    """
+    tickers = list(tickers or RESEARCH["tickers"])
+    interval = "1d"
+    provider = "yfinance"
+    use_dates = bool(start and end)
+    period = None if use_dates else (period or RESEARCH["period"])
+
+    if use_cache:
+        cached = _try_read_ohlc_cache(tickers, period, interval, provider, start, end)
+        if cached is not None and "Close" in cached:
+            return cached
+
+    if use_dates:
+        data = _yf_download(tickers, interval=interval, start=start, end=end)
+    else:
+        data = _yf_download(tickers, period=period, interval=interval)
+
+    if data is None or (hasattr(data, "empty") and data.empty):
+        close = fetch_research_prices(
+            tickers, period=period, use_cache=use_cache, start=start, end=end
+        )
+        return {"Close": close}
+
+    panels = _panels_from_download(data, tickers)
+    if start or end:
+        panels = {k: _slice_window(v, start, end) for k, v in panels.items()}
+    if use_cache and "Close" in panels:
+        _write_ohlc_cache(panels, list(panels["Close"].columns), period, interval, provider, start, end)
+    return panels

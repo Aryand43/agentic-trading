@@ -48,7 +48,12 @@ function SegmentBlock({
       <ul className="space-y-0 divide-y divide-line/70 border-t border-line">
         {rows.map(({ name, m }) => (
           <li key={name} className="flex items-baseline justify-between gap-3 py-2 text-sm">
-            <span className="font-medium capitalize text-ink">{name}</span>
+            <span className="font-medium capitalize text-ink">
+              {name}
+              {m.low_sample || (m.n_days != null && m.n_days < 120) ? (
+                <span className="ml-2 font-mono text-[10px] uppercase text-rose">low sample</span>
+              ) : null}
+            </span>
             <span className="font-mono text-[12px] tabular-nums text-muted">
               S {fmtSharpe(m.sharpe)}
               <span className="mx-1.5 text-line">·</span>

@@ -37,4 +37,4 @@ export function formatDeskError(raw: string | null | undefined): string | null {
   return t
 }
 
-export const DESK_VERSION = 'v0.6'
+export const DESK_VERSION = 'v0.7'

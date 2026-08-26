@@ -13,7 +13,7 @@ import yfinance as yf
 
 from src.backtest.engine import BacktestResult
 from src.backtest.metrics import compute_metrics, metrics_to_jsonable
-from src.config import REPORTS_DIR, RESEARCH
+from src.config import MIN_SAMPLE_TRADING_DAYS, REPORTS_DIR, RESEARCH
 
 
 def _regime_labels(benchmark: pd.Series, window: int = 126) -> pd.Series:
@@ -56,11 +56,19 @@ def _segment_metrics_from_returns(
     initial_capital: float,
 ) -> dict[str, float]:
     """Rebuild a mini equity curve on days matching mask and compute metrics."""
-    seg = returns.where(mask.reindex(returns.index).fillna(False), 0.0)
+    aligned = mask.reindex(returns.index).fillna(False)
+    n_active = int(aligned.sum())
+    seg = returns.where(aligned, 0.0)
     if seg.abs().sum() == 0:
-        return metrics_to_jsonable(compute_metrics(pd.Series([initial_capital], dtype=float)))
+        out = metrics_to_jsonable(compute_metrics(pd.Series([initial_capital], dtype=float)))
+        out["n_days"] = float(n_active)
+        out["low_sample"] = True
+        return out
     equity = (1.0 + seg).cumprod() * initial_capital
-    return metrics_to_jsonable(compute_metrics(equity, returns=seg))
+    out = metrics_to_jsonable(compute_metrics(equity, returns=seg))
+    out["n_days"] = float(n_active)
+    out["low_sample"] = n_active < MIN_SAMPLE_TRADING_DAYS
+    return out
 
 
 def build_report(

@@ -1,6 +1,7 @@
 pandas
 numpy
 scipy
+pydantic
 yfinance
 pytest
 pytest-asyncio

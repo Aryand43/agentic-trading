@@ -11,12 +11,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.schemas import (
     AgentRequest,
     AgentResponse,
+    AuditResponse,
     BacktestRequest,
     BacktestResponse,
+    RiskAuditResponse,
     RunRequest,
     RunResponse,
+    TradesResponse,
 )
-from api.service import run_agent, run_backtest, run_pipeline
+from api.service import (
+    get_backtest_audit,
+    get_backtest_risk,
+    get_backtest_trades,
+    run_agent,
+    run_backtest,
+    run_pipeline,
+)
 
 app = FastAPI(title="Agentic Trading API", version="0.3.0")
 
@@ -65,3 +75,33 @@ def agent(request: AgentRequest | None = None) -> AgentResponse:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/backtest/{run_id}/trades", response_model=TradesResponse)
+def backtest_trades(run_id: str) -> TradesResponse:
+    try:
+        return get_backtest_trades(run_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/backtest/{run_id}/audit", response_model=AuditResponse)
+def backtest_audit(run_id: str) -> AuditResponse:
+    try:
+        return get_backtest_audit(run_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/backtest/{run_id}/risk", response_model=RiskAuditResponse)
+def backtest_risk(run_id: str) -> RiskAuditResponse:
+    try:
+        return get_backtest_risk(run_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

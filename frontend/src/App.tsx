@@ -6,7 +6,9 @@ import { EquityChart } from './components/EquityChart'
 import { HintLabel } from './components/Hint'
 import { HorizonGrid } from './components/HorizonGrid'
 import { MetaStrip } from './components/MetaStrip'
+import { RiskComparisonTable } from './components/RiskComparisonTable'
 import { SegmentReport } from './components/SegmentReport'
+import { TradeAuditTable } from './components/TradeAuditTable'
 import { WeightsChart } from './components/WeightsChart'
 import { HINTS } from './content/hints'
 import { useAgent, useBacktest, usePipeline } from './hooks/usePipeline'
@@ -193,6 +195,9 @@ export default function App() {
                 </span>
                 <span className="mx-2 text-line">·</span>
                 {activeWindow.n_days} trading days
+                {activeWindow.n_days < 120 ? (
+                  <span className="ml-2 text-rose">low sample</span>
+                ) : null}
                 <span className="mx-2 text-line">·</span>$
                 {backtest.data.initial_capital.toLocaleString()}
                 <span className="mx-2 text-line">·</span>
@@ -258,6 +263,7 @@ export default function App() {
               equityCurve={backtest.data.equity_curve}
               baselineCurves={backtest.data.baseline_curves}
               initialCapital={backtest.data.initial_capital}
+              trades={backtest.data.trades}
             />
           </div>
 
@@ -296,6 +302,36 @@ export default function App() {
         </section>
       ) : null}
 
+      {backtest.data?.trades && backtest.data.trades.length > 0 ? (
+        <section className="space-y-3 border-t border-line pt-6 animate-[fadeIn_0.35s_ease-out]">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight text-ink">
+              <HintLabel label="Trade audit" text={HINTS.tradeAudit} />
+            </h2>
+            <p className="mt-0.5 text-sm text-muted">Every fill, exit reason, and PnL</p>
+          </div>
+          <TradeAuditTable
+            trades={backtest.data.trades}
+            signalEvents={backtest.data.signal_events}
+            truncated={backtest.data.trades_truncated}
+          />
+        </section>
+      ) : null}
+
+      {backtest.data?.risk_comparison && backtest.data.risk_comparison.length > 0 ? (
+        <section className="space-y-3 border-t border-line pt-6 animate-[fadeIn_0.35s_ease-out]">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight text-ink">
+              <HintLabel label="Risk comparison" text={HINTS.riskComparison} />
+            </h2>
+            <p className="mt-0.5 text-sm text-muted">
+              Predicted vs realized — no method is ranked without these numbers
+            </p>
+          </div>
+          <RiskComparisonTable rows={backtest.data.risk_comparison} />
+        </section>
+      ) : null}
+
       {backtest.data?.segments && Object.keys(backtest.data.segments).length > 0 ? (
         <section className="space-y-3 border-t border-line pt-6 animate-[fadeIn_0.35s_ease-out]">
           <div>
@@ -314,7 +350,7 @@ export default function App() {
             <h2 className="text-lg font-semibold tracking-tight text-ink">
               <HintLabel label="Agent" text={HINTS.agentHistory} />
             </h2>
-            <p className="mt-0.5 text-sm text-muted">Iterations by out-of-sample Sharpe</p>
+            <p className="mt-0.5 text-sm text-muted">Iterations by out-of-sample utility</p>
           </div>
           <AgentHistory data={agent.data} />
         </section>

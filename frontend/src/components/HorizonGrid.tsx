@@ -40,20 +40,27 @@ export function HorizonGrid({ tickers, horizons, signals }: HorizonGridProps) {
             <tr key={ticker}>
               <td className="py-1.5 pr-3 font-mono text-sm font-medium">{ticker}</td>
               {horizons.map((horizon) => {
-                const value = signals[ticker]?.[horizon] ?? 0
+                const raw = signals[ticker]?.[horizon]
+                const missing = raw == null
+                const value = missing ? 0 : raw
                 const strategy = HINTS.horizons[horizon] ?? horizon
                 return (
                   <td key={horizon} className="px-1 py-1.5">
                     <Hint
-                      text={`${ticker} @ ${horizon}: ${value >= 0 ? '+' : ''}${value.toFixed(3)}. ${strategy}`}
+                      text={
+                        missing
+                          ? `${ticker} @ ${horizon}: no signal.`
+                          : `${ticker} @ ${horizon}: ${value >= 0 ? '+' : ''}${value.toFixed(3)}. ${strategy}`
+                      }
                       className="w-full justify-center"
                       side="bottom"
                     >
                       <div
-                        className={`w-full cursor-help rounded-md px-2 py-1.5 text-center font-mono text-xs font-medium ${cellTone(value)}`}
+                        className={`w-full cursor-help rounded-md px-2 py-1.5 text-center font-mono text-xs font-medium ${
+                          missing ? 'bg-mist text-muted' : cellTone(value)
+                        }`}
                       >
-                        {value >= 0 ? '+' : ''}
-                        {value.toFixed(2)}
+                        {missing ? '—' : `${value >= 0 ? '+' : ''}${value.toFixed(2)}`}
                       </div>
                     </Hint>
                   </td>

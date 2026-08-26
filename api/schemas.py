@@ -86,6 +86,12 @@ class BacktestRequest(BaseModel):
     baselines: list[str] = Field(
         default_factory=lambda: ["buy_and_hold", "sma_cross"],
     )
+    take_profit_pct: float | None = Field(default=None, ge=0.0, le=1.0)
+    stop_loss_pct: float | None = Field(default=None, ge=0.0, le=1.0)
+    side_mode: str | None = Field(default=None)
+    rebalance_every: int | None = Field(default=None, ge=1, le=63)
+    cost_bps: float | None = Field(default=None, ge=0.0, le=200.0)
+    slippage_bps: float | None = Field(default=None, ge=0.0, le=200.0)
 
     @model_validator(mode="after")
     def _dates_pair(self) -> BacktestRequest:
@@ -94,6 +100,65 @@ class BacktestRequest(BaseModel):
         if self.start_date and self.end_date and self.start_date >= self.end_date:
             raise ValueError("start_date must be before end_date.")
         return self
+
+
+class TradeAuditRow(BaseModel):
+    trade_id: str
+    ticker: str
+    signal_date: str
+    signal_horizon: str
+    signal_value: float
+    signal_side: str
+    entry_date: str | None = None
+    entry_price: float | None = None
+    exit_date: str | None = None
+    exit_price: float | None = None
+    quantity: float = 0.0
+    notional: float = 0.0
+    position_direction: str = "flat"
+    take_profit_threshold: float | None = None
+    stop_loss_threshold: float | None = None
+    exit_reason: str | None = None
+    gross_pnl: float | None = None
+    transaction_cost: float = 0.0
+    net_pnl: float | None = None
+    return_: float | None = Field(default=None, alias="return")
+    portfolio_weight: float = 0.0
+    price_source: str = "close"
+
+    model_config = {"populate_by_name": True}
+
+
+class SignalEventRow(BaseModel):
+    date: str
+    ticker: str
+    horizon: str
+    signal_value: float
+    signal_side: str
+    conviction: float | None = None
+    weight: float | None = None
+
+
+class PositionPoint(BaseModel):
+    date: str
+    ticker: str
+    weight: float
+
+
+class RiskComparisonRow(BaseModel):
+    method: str
+    horizon: str
+    confidence: float | None = None
+    predicted_risk: float | None = None
+    realized_risk: float | None = None
+    error: float | None = None
+    error_metric: str | None = None
+    breach_rate: float | None = None
+    n_obs: int = 0
+    sample_start: str | None = None
+    sample_end: str | None = None
+    low_sample: bool = False
+    risk_type: str | None = None
 
 
 class BacktestResponse(BaseModel):
@@ -107,6 +172,33 @@ class BacktestResponse(BaseModel):
     baseline_curves: dict[str, list[EquityPoint]] = Field(default_factory=dict)
     segments: dict = Field(default_factory=dict)
     portfolios: dict = Field(default_factory=dict)
+    run_id: str | None = None
+    trading_rules: dict = Field(default_factory=dict)
+    trades: list[TradeAuditRow] = Field(default_factory=list)
+    trades_truncated: bool = False
+    signal_events: list[SignalEventRow] = Field(default_factory=list)
+    signal_events_truncated: bool = False
+    position_history: list[PositionPoint] = Field(default_factory=list)
+    risk_comparison: list[RiskComparisonRow] = Field(default_factory=list)
+    artifact_paths: dict[str, str] = Field(default_factory=dict)
+
+
+class TradesResponse(BaseModel):
+    run_id: str
+    trades: list[TradeAuditRow]
+
+
+class AuditResponse(BaseModel):
+    run_id: str
+    trading_rules: dict = Field(default_factory=dict)
+    trades: list[TradeAuditRow] = Field(default_factory=list)
+    signal_events: list[SignalEventRow] = Field(default_factory=list)
+    artifact_paths: dict[str, str] = Field(default_factory=dict)
+
+
+class RiskAuditResponse(BaseModel):
+    run_id: str
+    risk_comparison: list[RiskComparisonRow] = Field(default_factory=list)
 
 
 class AgentRequest(BaseModel):
@@ -142,6 +234,7 @@ class AgentIteration(BaseModel):
     code_hash: str = ""
     portfolios: dict = Field(default_factory=dict)
     test_summary: dict = Field(default_factory=dict)
+    source: str = ""
 
 
 class LeaderboardRow(BaseModel):

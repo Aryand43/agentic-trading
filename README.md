@@ -3,7 +3,7 @@
 Multi-horizon trading **research desk**: signal generation, risk metrics, portfolio
 construction, historical backtesting, segmented reports, and a strategy discovery agent loop.
 
-Header should read **Research desk · v0.3**. If you still see “Pipeline desk” or a bare
+Header should read **Research desk · v0.7**. If you still see “Pipeline desk” or a bare
 `yfinance … (5d/1m)` banner, you are on a **stale** frontend/API process — hard-restart below.
 
 ## Structure
@@ -41,7 +41,7 @@ cd frontend && npm install && npm run dev -- --host 127.0.0.1 --port 5173 --forc
 Open **http://127.0.0.1:5173**
 
 Confirm: title **Research desk**, tabs **Backtest | Live | Agent**, green **Backtest window**
-with **Start date / End date**, and eyebrow **Agentic Trading · v0.3**.
+with **Start date / End date**, and eyebrow **Agentic Trading · v0.7**.
 
 ## Research control panel
 
@@ -55,9 +55,14 @@ with **Start date / End date**, and eyebrow **Agentic Trading · v0.3**.
 
 ### API
 
-- `POST /api/run` — live pipeline (daily history first)  
-- `POST /api/backtest` — `start_date` + `end_date` *or* `period`, capital, flags  
-- `POST /api/agent` — horizon discovery loop  
+- `POST /api/run` — live pipeline (daily history first)
+- `POST /api/backtest` — `start_date` + `end_date` *or* `period`, capital, flags; returns equity plus `trades`, `risk_comparison`, `run_id`
+- `POST /api/agent` — horizon discovery loop (baselines + `n_iterations` discoveries)
+- `GET /api/backtest/{run_id}/trades` — full trade audit
+- `GET /api/backtest/{run_id}/audit` — trades + signals + trading rules
+- `GET /api/backtest/{run_id}/risk` — predicted vs realized risk table
+
+Paper methods: [`docs/METHODS.md`](docs/METHODS.md).  
 
 ## CLI
 
@@ -67,10 +72,12 @@ python -m examples.run_agent --horizon 10d --iters 3
 python -m examples.run_portfolio_demo
 ```
 
-Reports → `reports/`. Agent runs → `runs/`. Price cache → `data/cache/`.
+Reports → `reports/<run_id>/` (trades.csv/json, config.json, risk.json). Agent runs → `runs/`. Price cache → `data/cache/`.
 
 Optional LLM text: `OPENAI_API_KEY`.
 
 ## Paper note
 
 Draft a paper only after backtest + agent runs produce metrics you can report.
+See [`docs/METHODS.md`](docs/METHODS.md) for timing, TP/SL, costs, and risk-baseline
+assumptions. Do not present backtests as live trading.

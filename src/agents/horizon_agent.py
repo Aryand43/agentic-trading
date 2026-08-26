@@ -30,6 +30,14 @@ from src.agents.catalog import (
     is_duplicate,
     write_leaderboard,
 )
+from src.agents.proposal import (
+    AgentProposal,
+    build_observation,
+    clip_params_to_bounds,
+    default_rules_from_proposal,
+    parse_llm_proposal,
+    validate_proposal,
+)
 from src.backtest.baselines import BASELINE_SIGNAL_FNS
 from src.backtest.engine import run_signal_backtest
 from src.backtest.metrics import metrics_to_jsonable, compute_metrics, strategy_utility
@@ -411,6 +419,12 @@ def run_horizon_agent(
         )
 
     last_perf: dict[str, Any] = {}
+    last_observation: dict[str, Any] = {}
+    exec_kwargs: dict[str, Any] = {
+        "take_profit_pct": RESEARCH.get("take_profit_pct", 0.08),
+        "stop_loss_pct": RESEARCH.get("stop_loss_pct", 0.04),
+        "rebalance_every": 1,
+    }
     stagnant = 0
     stagnate_k = int(RESEARCH.get("stagnation_iters", 3))
 
@@ -419,22 +433,6 @@ def run_horizon_agent(
             # Discovery / complementary proposals after at least one performance report
             if last_perf:
                 catalog_txt = catalog_summary_table(horizon)
-                perf_txt = json.dumps(
-                    {
-                        "strategy": last_perf.get("strategy"),
-                        "test_summary": last_perf.get("test_summary"),
-                        "windows": last_perf.get("windows"),
-                        "portfolios": {
-                            k: {
-                                "test": (v or {}).get("test"),
-                                "n_stocks": (v or {}).get("n_stocks"),
-                            }
-                            for k, v in (last_perf.get("portfolios") or {}).items()
-                        },
-                    },
-                    default=str,
-                )[:10_000]
-
                 plateau = stagnant >= stagnate_k
                 if plateau:
                     insights = (
@@ -449,30 +447,55 @@ def run_horizon_agent(
                     source = "complementary"
                 else:
                     llm_text = None
+                    obs_txt = json.dumps(last_observation or {}, default=str)[:12_000]
                     if use_llm:
                         llm_text = _llm_chat(
-                            "You are a quant researcher. Given the latest STRATEGY PERFORMANCE REPORT "
-                            "and the STRATEGY CATALOG (already tested principles), propose a NEW strategy "
-                            "that is not a duplicate of the catalog. Reply with 3-5 sentences: name idea, "
-                            "principle, and which template family "
-                            f"({', '.join(sorted(MUTATABLE))}) and param direction.",
-                            f"Horizon={horizon}\n\n## Latest performance report (JSON)\n{perf_txt}\n\n"
-                            f"## Strategy catalog\n{catalog_txt}\n\nError analysis:\n{insights}",
+                            "You are a quant researcher. Reply with JSON only matching "
+                            '{"template": one of '
+                            + json.dumps(sorted(MUTATABLE))
+                            + ', "params": {}, "take_profit_pct": number, '
+                            '"stop_loss_pct": number, "rebalance_every": int, '
+                            '"max_position": number, "gross_exposure": number, '
+                            '"target_volatility": number, "risk_method": '
+                            '"historical_std"|"historical_var"|"ewma_cornish_fisher", '
+                            '"description": string}. Stay inside safe ranges. '
+                            "Do not propose live trading. Propose a NEW non-duplicate idea.",
+                            f"Horizon={horizon}\n\n## Structured observation\n{obs_txt}\n\n"
+                            f"## Catalog\n{catalog_txt}\n\nError analysis:\n{insights}",
                         )
                     tmpl = template_name if template_name in MUTATABLE else horizon_template
-                    if llm_text:
-                        low = llm_text.lower()
-                        for cand in MUTATABLE:
-                            if cand.replace("_", " ") in low or cand in low:
-                                tmpl = cand
-                                break
-                    base_params = (
-                        params
-                        if tmpl == template_name
-                        else dict(TEMPLATES[tmpl]["params"])
-                    )
-                    prm = _mutate_params(tmpl, base_params, insights, rng)
-                    source = "llm" if llm_text else "heuristic"
+                    parsed = parse_llm_proposal(llm_text or "")
+                    proposal: AgentProposal | None = None
+                    if parsed:
+                        try:
+                            if "template" not in parsed:
+                                parsed["template"] = tmpl
+                            bounds = TEMPLATES.get(parsed.get("template") or tmpl, {}).get("bounds")
+                            proposal = validate_proposal(parsed, template_bounds=bounds)
+                            tmpl = proposal.template if proposal.template in MUTATABLE else tmpl
+                            prm = clip_params_to_bounds(
+                                tmpl,
+                                proposal.params or dict(TEMPLATES[tmpl]["params"]),
+                                TEMPLATES[tmpl]["bounds"],
+                            )
+                            exec_kwargs.update(default_rules_from_proposal(proposal))
+                            source = "llm"
+                        except (ValueError, TypeError):
+                            proposal = None
+                    if proposal is None:
+                        if llm_text:
+                            low = llm_text.lower()
+                            for cand in MUTATABLE:
+                                if cand.replace("_", " ") in low or cand in low:
+                                    tmpl = cand
+                                    break
+                        base_params = (
+                            params
+                            if tmpl == template_name
+                            else dict(TEMPLATES[tmpl]["params"])
+                        )
+                        prm = _mutate_params(tmpl, base_params, insights, rng)
+                        source = "llm" if llm_text else "heuristic"
                     name = f"{horizon}_{tmpl}_i{i}"
 
                 template_name = tmpl
@@ -556,6 +579,9 @@ def run_horizon_agent(
                 cost_bps=cost_bps,
                 warmup=warm,
                 label=f"{horizon}_iter{i}_train",
+                take_profit_pct=exec_kwargs.get("take_profit_pct"),
+                stop_loss_pct=exec_kwargs.get("stop_loss_pct"),
+                rebalance_every=int(exec_kwargs.get("rebalance_every") or 1),
             )
         except Exception as exc:
             insights = f"Train backtest failed: {exc}."
@@ -573,6 +599,9 @@ def run_horizon_agent(
                 cost_bps=cost_bps,
                 warmup=warm,
                 label=f"{horizon}_iter{i}_full",
+                take_profit_pct=exec_kwargs.get("take_profit_pct"),
+                stop_loss_pct=exec_kwargs.get("stop_loss_pct"),
+                rebalance_every=int(exec_kwargs.get("rebalance_every") or 1),
             )
         except Exception:
             full_res = train_res
@@ -598,6 +627,22 @@ def run_horizon_agent(
         val_m = _p1_metrics(perf, "val")
         test_m = _p1_metrics(perf, "test")
         util = float((perf.get("test_summary") or {}).get("utility") or test_m.get("utility") or 0.0)
+        last_observation = build_observation(
+            test_metrics=test_m,
+            train_metrics=train_m,
+            val_metrics=val_m,
+            trades=list(getattr(full_res, "trades", None) or getattr(train_res, "trades", None) or []),
+            trading_rules=getattr(full_res, "trading_rules", None) or exec_kwargs,
+            prior=[
+                {
+                    "iteration": a.iteration,
+                    "template": a.hypothesis.template,
+                    "params": a.hypothesis.params,
+                    "utility": a.utility,
+                }
+                for a in summary.iterations[-5:]
+            ],
+        )
 
         iter_dir = run_dir / f"iter_{i:02d}"
         iter_dir.mkdir(exist_ok=True)
@@ -641,6 +686,9 @@ def run_horizon_agent(
         )
         (iter_dir / "insights.txt").write_text(insights)
         (iter_dir / "code_hash.txt").write_text(ch)
+        (iter_dir / "observation.json").write_text(
+            json.dumps(last_observation, indent=2, default=str)
+        )
 
         append_catalog_entry(
             {

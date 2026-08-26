@@ -5,6 +5,7 @@ import type {
   BacktestResult,
   PipelineResult,
   RunRequest,
+  TradeAuditRow,
 } from '../types/pipeline'
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -42,4 +43,28 @@ export async function runBacktest(body: BacktestRequest = {}): Promise<BacktestR
 
 export async function runAgent(body: AgentRequest = {}): Promise<AgentResult> {
   return postJson<AgentResult>('/api/agent', body)
+}
+
+export async function fetchBacktestTrades(runId: string): Promise<{ run_id: string; trades: TradeAuditRow[] }> {
+  const response = await fetch(`/api/backtest/${encodeURIComponent(runId)}/trades`)
+  if (!response.ok) {
+    throw new Error(`Trades request failed (${response.status})`)
+  }
+  return response.json()
+}
+
+export async function fetchBacktestAudit(runId: string) {
+  const response = await fetch(`/api/backtest/${encodeURIComponent(runId)}/audit`)
+  if (!response.ok) {
+    throw new Error(`Audit request failed (${response.status})`)
+  }
+  return response.json()
+}
+
+export async function fetchBacktestRisk(runId: string) {
+  const response = await fetch(`/api/backtest/${encodeURIComponent(runId)}/risk`)
+  if (!response.ok) {
+    throw new Error(`Risk request failed (${response.status})`)
+  }
+  return response.json()
 }
