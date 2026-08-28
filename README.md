@@ -30,6 +30,8 @@ Open http://127.0.0.1:5173 — **Backtest**, **Live**, **Agent**. Window is 1y /
 ```bash
 python -m examples.run_backtest --horizon 10d --portfolio --agent --agent-iters 2 --no-industry
 python -m examples.run_agent --horizon 10d --iters 3
+python -m examples.run_paper_experiment
+python -m examples.run_paper_experiment --plan
 ```
 
-Reports → `reports/<run_id>/`. Agent runs → `runs/`. Cache → `data/cache/`. Optional LLM: `OPENAI_API_KEY`.
+Reports → `reports/<run_id>/`. Paper tables → `reports/paper/`. Agent runs → `runs/`. Cache → `data/cache/`. Optional LLM: `OPENAI_API_KEY`.

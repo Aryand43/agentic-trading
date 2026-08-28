@@ -13,9 +13,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import urllib.error
-import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,6 +27,7 @@ from src.agents.catalog import (
     is_duplicate,
     write_leaderboard,
 )
+from src.agents.llm import llm_chat
 from src.agents.proposal import (
     AgentProposal,
     build_observation,
@@ -224,39 +222,6 @@ MUTATABLE = {"sma_rsi", "bollinger_squeeze", "reversal", "momentum_skip"}
 BASELINE_SEED_ORDER = ["buy_and_hold", "sma_cross", "rsi_mean_reversion", "momentum_20d"]
 
 
-def _llm_chat(system: str, user: str, model: str = "gpt-4o-mini") -> str | None:
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        return None
-    base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
-    url = base.rstrip("/") + "/chat/completions"
-    body = json.dumps(
-        {
-            "model": os.environ.get("OPENAI_MODEL", model),
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            "temperature": 0.4,
-        }
-    ).encode()
-    req = urllib.request.Request(
-        url,
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            payload = json.loads(resp.read().decode())
-        return payload["choices"][0]["message"]["content"]
-    except (urllib.error.URLError, KeyError, TimeoutError, json.JSONDecodeError):
-        return None
-
-
 def _mutate_params(
     template: str,
     params: dict[str, float],
@@ -449,7 +414,7 @@ def run_horizon_agent(
                     llm_text = None
                     obs_txt = json.dumps(last_observation or {}, default=str)[:12_000]
                     if use_llm:
-                        llm_text = _llm_chat(
+                        llm_text = llm_chat(
                             "You are a quant researcher. Reply with JSON only matching "
                             '{"template": one of '
                             + json.dumps(sorted(MUTATABLE))
@@ -519,7 +484,7 @@ def run_horizon_agent(
 
                 llm_desc = None
                 if use_llm and source in {"llm", "complementary"}:
-                    llm_desc = _llm_chat(
+                    llm_desc = llm_chat(
                         "Summarize the proposed trading strategy in 2 sentences (no code).",
                         f"Template={template_name} params={params} insights={insights[:500]}",
                     )
@@ -650,7 +615,7 @@ def run_horizon_agent(
 
         insights = _heuristic_insights(perf, train_m, val_m, test_m)
         if use_llm:
-            llm_ins = _llm_chat(
+            llm_ins = llm_chat(
                 "You perform error analysis on a trading strategy performance report. "
                 "List strengths, weaknesses, and a concrete next-strategy principle. 4-6 sentences.",
                 json.dumps(

@@ -63,12 +63,16 @@ Chronological splits in `src/backtest/splits.py` (defaults ≈ 756 / 126 / 15 tr
 - LLM (optional `OPENAI_API_KEY`) must return JSON; parse failures fall back to heuristic mutation. No LangChain.
 - Ranking uses **test utility**, not Sharpe.
 
+## Paper experiment
+
+`python -m examples.run_paper_experiment` runs the frozen protocol in `PAPER_PROTOCOL` (`src/config.py`): 15 NASDAQ names, `5y` daily bars, all 7 horizons, agent on **10d** only (`n_iterations=2`), **test_days=63** (longer than the 15-day Rui default so tables are usable). `--plan` asks the LLM (`gpt-4o-mini` via `OPENAI_API_KEY`) for a JSON `ExperimentSpec`; parse/validation failure falls back to the frozen spec. The LLM does not write signal code. Engines execute: multi-horizon portfolio, TA baselines, walk-forward risk comparison, segments, optional agent. Tables land in `reports/paper/<stamp>/tables/`. Historical backtest, not live trading.
+
 ## Reproducibility
 
 ```bash
 pip install -r requirements.txt
 pip install -r api/requirements.txt
-python -m unittest src.backtest.test_execution src.risk.test_evaluation src.agents.test_proposal
+python -m unittest src.backtest.test_execution src.risk.test_evaluation src.agents.test_proposal src.paper.test_experiment
 python -m examples.run_backtest --horizon 10d --portfolio --no-industry
 ```
 

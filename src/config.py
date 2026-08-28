@@ -76,6 +76,18 @@ CATALOG_DIR = ROOT / "runs" / "catalog"
 # Liquid NASDAQ-heavy universe for agent discovery runs
 NASDAQ_UNIVERSE = list(RESEARCH["tickers"])
 
+# Frozen paper-experiment protocol (used when the LLM planner is off or fails).
+# test_days=63 is longer than RESEARCH["test_days"] (15) so tables are usable.
+PAPER_PROTOCOL = {
+    "tickers": list(NASDAQ_UNIVERSE),
+    "period": "5y",
+    "horizons": list(HORIZONS),
+    "include_agent": True,
+    "n_iterations": 2,
+    "test_days": 63,
+    "agent_horizons": ["10d"],
+}
+
 RISK = {
     "window_size": 60,  # (60 bars = 1 hour of 1-minute data)
     "confidence": 0.95,
