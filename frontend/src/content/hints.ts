@@ -22,11 +22,7 @@ export const HINTS = {
   modeLive: 'Point-in-time pipeline snapshot (conviction, weights, horizon votes).',
   modeAgent:
     'One horizon agent loop: hypothesize → backtest → insights → next hypothesis (artifacts under runs/).',
-  dateStart:
-    'First calendar day of the research window (inclusive). After a run, snaps to the first session used.',
-  dateEnd:
-    'Last calendar day of the research window (inclusive). After a run, snaps to the last session used.',
-  period: 'Relative yfinance window when calendar dates are off (e.g. 3y).',
+  period: 'Lookback window for the backtest: last 1, 3, or 5 years of daily bars.',
   initialCapital: 'Starting portfolio value for equity curve and metrics (default $10,000).',
   agentHorizon: 'Which holding-period strategy agent to run (one horizon = one agent).',
   agentIters: 'Number of discovery loops (1–5). More iters → longer runtime.',

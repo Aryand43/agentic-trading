@@ -22,10 +22,6 @@ export function formatDeskError(raw: string | null | undefined): string | null {
     return "Can't reach the API. Start: uvicorn api.main:app --reload --port 8000"
   }
 
-  if (lower.includes('start_date') && lower.includes('end_date')) {
-    return 'Set both Start and End dates, or switch to a period string (1y / 3y / 5y).'
-  }
-
   if (lower.includes('not enough price history')) {
     return `${t} Try a longer window (Last 3y / 5y) or fewer exotic tickers.`
   }

@@ -2,7 +2,6 @@ import { useState, type ReactNode } from 'react'
 import type { RunMode } from '../types/pipeline'
 import { HintLabel } from './Hint'
 import { HINTS } from '../content/hints'
-import { isYearPreset } from '../lib/dates'
 import { HORIZONS, NASDAQ_SAMPLE } from '../types/pipeline'
 
 export type ControlPanelProps = {
@@ -16,14 +15,8 @@ export type ControlPanelProps = {
   onGrossExposureChange: (v: number) => void
   targetVolatility: number
   onTargetVolatilityChange: (v: number) => void
-  startDate: string
-  endDate: string
-  onStartDateChange: (v: string) => void
-  onEndDateChange: (v: string) => void
   period: string
   onPeriodChange: (v: string) => void
-  useDates: boolean
-  onUseDatesChange: (v: boolean) => void
   initialCapital: number
   onInitialCapitalChange: (v: number) => void
   includeBaselines: boolean
@@ -36,7 +29,6 @@ export type ControlPanelProps = {
   onIterationsChange: (v: number) => void
   loading: boolean
   onRun: () => void
-  onApplyPreset: (years: number) => void
 }
 
 const MODES: { id: RunMode; label: string }[] = [
@@ -81,14 +73,8 @@ export function ControlPanel(props: ControlPanelProps) {
     onGrossExposureChange,
     targetVolatility,
     onTargetVolatilityChange,
-    startDate,
-    endDate,
-    onStartDateChange,
-    onEndDateChange,
     period,
     onPeriodChange,
-    useDates,
-    onUseDatesChange,
     initialCapital,
     onInitialCapitalChange,
     includeBaselines,
@@ -101,7 +87,6 @@ export function ControlPanel(props: ControlPanelProps) {
     onIterationsChange,
     loading,
     onRun,
-    onApplyPreset,
   } = props
 
   const [showSizing, setShowSizing] = useState(false)
@@ -153,12 +138,14 @@ export function ControlPanel(props: ControlPanelProps) {
         {research && (
           <div className="flex shrink-0 items-center gap-1">
             {[1, 3, 5].map((y) => {
-              const on = useDates && isYearPreset(y, startDate, endDate)
+              const value = `${y}y`
+              const on = period === value
               return (
                 <button
                   key={y}
                   type="button"
-                  onClick={() => onApplyPreset(y)}
+                  title={HINTS.period}
+                  onClick={() => onPeriodChange(value)}
                   className={[
                     'rounded-md px-2.5 py-1 font-mono text-xs transition',
                     on
@@ -176,43 +163,7 @@ export function ControlPanel(props: ControlPanelProps) {
 
       <div className="flex min-w-0 flex-col gap-5 px-4 py-4 sm:px-5">
         {research ? (
-          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {useDates ? (
-              <>
-                <Field label="Start" hint={HINTS.dateStart}>
-                  <input
-                    type="date"
-                    value={startDate}
-                    max={endDate}
-                    onChange={(e) => onStartDateChange(e.target.value)}
-                    className={field}
-                  />
-                </Field>
-                <Field label="End" hint={HINTS.dateEnd}>
-                  <input
-                    type="date"
-                    value={endDate}
-                    min={startDate}
-                    onChange={(e) => onEndDateChange(e.target.value)}
-                    className={field}
-                  />
-                </Field>
-              </>
-            ) : (
-              <Field label="Period" hint={HINTS.period}>
-                <select
-                  value={period}
-                  onChange={(e) => onPeriodChange(e.target.value)}
-                  className={field}
-                >
-                  {['1y', '2y', '3y', '5y', '10y', 'max'].map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            )}
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:max-w-xs">
             <Field label="Capital" hint={HINTS.initialCapital}>
               <input
                 type="number"
@@ -223,18 +174,6 @@ export function ControlPanel(props: ControlPanelProps) {
                 className={field}
               />
             </Field>
-            <div className="flex min-w-0 flex-col justify-end gap-1.5">
-              <span className="hidden text-[11px] font-medium uppercase tracking-[0.08em] text-transparent lg:block">
-                ·
-              </span>
-              <button
-                type="button"
-                onClick={() => onUseDatesChange(!useDates)}
-                className="h-10 w-full rounded-md border border-line bg-mist/60 text-xs font-medium text-muted transition hover:border-teal hover:text-ink"
-              >
-                {useDates ? 'Use period string' : 'Use calendar dates'}
-              </button>
-            </div>
           </div>
         ) : (
           <p className="text-sm text-muted">

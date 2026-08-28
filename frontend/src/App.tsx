@@ -12,7 +12,6 @@ import { TradeAuditTable } from './components/TradeAuditTable'
 import { WeightsChart } from './components/WeightsChart'
 import { HINTS } from './content/hints'
 import { useAgent, useBacktest, usePipeline } from './hooks/usePipeline'
-import { todayYMD, yearsAgoYMD } from './lib/dates'
 import { DESK_VERSION, formatDeskError } from './lib/errors'
 import type { RunMode, WindowInfo } from './types/pipeline'
 
@@ -37,9 +36,6 @@ export default function App() {
   const [maxPosition, setMaxPosition] = useState(0.15)
   const [grossExposure, setGrossExposure] = useState(1.0)
   const [targetVolatility, setTargetVolatility] = useState(0.15)
-  const [useDates, setUseDates] = useState(true)
-  const [startDate, setStartDate] = useState(() => yearsAgoYMD(3))
-  const [endDate, setEndDate] = useState(() => todayYMD())
   const [period, setPeriod] = useState('3y')
   const [initialCapital, setInitialCapital] = useState(10_000)
   const [includeBaselines, setIncludeBaselines] = useState(true)
@@ -56,23 +52,11 @@ export default function App() {
     return parsed.length ? parsed : null
   }
 
-  const windowFields = () =>
-    useDates
-      ? { start_date: startDate, end_date: endDate, period: period || '3y' }
-      : { start_date: null, end_date: null, period }
-
-  const applyPreset = (years: number) => {
-    setUseDates(true)
-    setStartDate(yearsAgoYMD(years))
-    setEndDate(todayYMD())
-    setPeriod(`${years}y`)
-  }
-
-  const snapFormToWindow = (window: WindowInfo) => {
-    setUseDates(true)
-    setStartDate(window.start)
-    setEndDate(window.end)
-  }
+  const windowFields = () => ({
+    start_date: null,
+    end_date: null,
+    period: period || '3y',
+  })
 
   const handleRun = async () => {
     const tickers = tickersOrNull()
@@ -87,7 +71,7 @@ export default function App() {
       return
     }
     if (mode === 'backtest') {
-      const result = await backtest.run({
+      await backtest.run({
         tickers,
         ...windowFields(),
         initial_capital: initialCapital,
@@ -97,17 +81,15 @@ export default function App() {
         include_baselines: includeBaselines,
         include_segments: includeSegments,
       })
-      if (result?.window) snapFormToWindow(result.window)
       return
     }
-    const result = await agent.run({
+    await agent.run({
       tickers,
       ...windowFields(),
       horizon,
       n_iterations: iterations,
       initial_capital: initialCapital,
     })
-    if (result?.window) snapFormToWindow(result.window)
   }
 
   const activeWindow: WindowInfo | null = useMemo(() => {
@@ -144,14 +126,8 @@ export default function App() {
         onGrossExposureChange={setGrossExposure}
         targetVolatility={targetVolatility}
         onTargetVolatilityChange={setTargetVolatility}
-        startDate={startDate}
-        endDate={endDate}
-        onStartDateChange={setStartDate}
-        onEndDateChange={setEndDate}
         period={period}
         onPeriodChange={setPeriod}
-        useDates={useDates}
-        onUseDatesChange={setUseDates}
         initialCapital={initialCapital}
         onInitialCapitalChange={setInitialCapital}
         includeBaselines={includeBaselines}
@@ -164,7 +140,6 @@ export default function App() {
         onIterationsChange={setIterations}
         loading={loading}
         onRun={handleRun}
-        onApplyPreset={applyPreset}
       />
 
       {error ? (
